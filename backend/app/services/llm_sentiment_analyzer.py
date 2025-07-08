@@ -12,9 +12,10 @@ from loguru import logger
 import google.generativeai as genai
 from sqlalchemy.orm import Session
 from ..database import SessionLocal
-from ..models import MarketSentimentAnalysis
+from ..models import MarketSentimentAnalysis, MarketNewsSummary, GeminiApiCallLog
 from ..config import settings
 from .historical_market_collector import historical_collector
+import asyncio
 
 class LLMSentimentAnalyzer:
     """Uses LLM to analyze market sentiment from historical data."""
@@ -208,21 +209,35 @@ class LLMSentimentAnalyzer:
     async def _analyze_with_gemini(self, data_summary: Dict, days_back: int) -> Optional[Dict]:
         """Use Gemini to analyze market sentiment."""
         try:
+            # --- Inject latest news summary ---
+            latest_news_summary = None
+            db = SessionLocal()
+            try:
+                latest = db.query(MarketNewsSummary).order_by(MarketNewsSummary.created_at.desc()).first()
+                if latest:
+                    latest_news_summary = latest.summary
+            finally:
+                db.close()
+            news_summary_section = f"\n\nLATEST NEWS SUMMARY (from top 10 articles):\n{latest_news_summary}\n" if latest_news_summary else ""
+            # --- End inject ---
             prompt = f"""
 You are a professional financial analyst providing market sentiment analysis to investors. Analyze the following comprehensive market data from the past {days_back} days and provide a clear, client-focused sentiment assessment.
 
 IMPORTANT: Use the 'full_time_series' data below for your analysis. This contains daily values for each indicator over the full {days_back}-day period.
 
 MARKET DATA SUMMARY:
-{json.dumps(data_summary, indent=2)}
+{json.dumps(data_summary, indent=2)}{news_summary_section}
 
 ANALYSIS INSTRUCTIONS:
-1. **Client-Focused Language**: Write for investors, avoid technical jargon like "dataset", "database", or "data points"
-2. **Don't Repeat Visible Data**: Users can already see current 5-day changes, focus on trends and context instead
-3. **Recent Market Context**: ALWAYS mention recent developments within the last month that could impact sentiment
-4. **Earnings Season Awareness**: Consider quarterly earnings cycles (earnings season occurs after each quarter ends: Jan, Apr, Jul, Oct)
-5. **Focus on Insights**: Provide interpretation and context, not just data repetition
-6. **Integrated Analysis**: Combine current trends with historical context in a natural, flowing narrative
+1. **CONCISE OVERVIEW**: Your analysis MUST be a concise summary of 3-4 sentences maximum. Do NOT write a long paragraph or provide detailed explanations.
+2. **NO DEFINITIONS**: Never explain what any indicator (such as VIX, DXY, S&P 500, etc.) is or how it works. Assume the reader already knows.
+3. **Client-Focused Language**: Write for investors, avoid technical jargon like "dataset", "database", or "data points"
+4. **Don't Repeat Visible Data**: Users can already see current 5-day changes, focus on trends and context instead
+5. **Recent Market Context**: ALWAYS mention recent developments within the last month that could impact sentiment
+6. **Earnings Season Awareness**: Consider quarterly earnings cycles (earnings season occurs after each quarter ends: Jan, Apr, Jul, Oct)
+7. **Focus on Insights**: Provide interpretation and context, not just data repetition
+8. **Integrated Analysis**: Combine current trends with historical context in a natural, flowing narrative
+9. **NEWS SUMMARY**: The 'LATEST NEWS SUMMARY' above is an additional datapoint for sentiment. Integrate it into your analysis, but do NOT overweight it unless there are truly standout developments. Output can be slightly longer if needed to naturally integrate news context.
 
 Please provide a detailed analysis in the following JSON format:
 
@@ -230,7 +245,7 @@ Please provide a detailed analysis in the following JSON format:
     "sentiment_score": <float between 1.0 and 10.0>,
     "sentiment_label": "<one of: Extremely Bearish, Very Bearish, Bearish, Slightly Bearish, Neutral, Slightly Bullish, Bullish, Very Bullish, Extremely Bullish>",
     "confidence_level": <float between 0.0 and 1.0>,
-    "trend_analysis": "<comprehensive analysis that naturally weaves together current market dynamics, historical context, and what's driving sentiment. Include recent market developments from the last month, consider earnings season timing, and draw relevant historical comparisons. Make connections between past patterns and current trends. Avoid repeating specific percentage changes visible in the UI>",
+    "trend_analysis": "<concise 3-4 sentence overview of current market sentiment, trends, and context. Do NOT explain what any indicator is. Focus on actionable, high-level insights only.>",
     "market_outlook": "<brief, concise forward-looking perspective - 2-3 sentences maximum, focus on key themes and potential scenarios>"
 }}
 
@@ -258,8 +273,24 @@ SENTIMENT SCALE (1-10):
 
 Focus on providing clear, actionable analysis that helps investors understand current market conditions.
 """
-
-            response = await self.model.generate_content_async(prompt)
+            response = await asyncio.to_thread(
+                self.model.generate_content,
+                prompt
+            )
+            
+            # Log Gemini API call
+            try:
+                db_log = SessionLocal()
+                log_entry = GeminiApiCallLog(
+                    timestamp=datetime.utcnow(),
+                    purpose='llm_sentiment_analysis',
+                    prompt=prompt
+                )
+                db_log.add(log_entry)
+                db_log.commit()
+                db_log.close()
+            except Exception as e:
+                logger.warning(f"Failed to log Gemini API call: {e}")
             
             if response and response.text:
                 # Extract JSON from response

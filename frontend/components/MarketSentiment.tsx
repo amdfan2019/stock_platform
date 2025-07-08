@@ -296,7 +296,7 @@ const MarketSentiment: React.FC = () => {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-2">
           <Activity className="h-5 w-5 text-blue-500" />
-          <h2 className="text-lg font-semibold text-gray-900">Market Sentiment</h2>
+          <h2 className="text-xl font-bold text-neutral-900 uppercase">MARKET SENTIMENT</h2>
         </div>
         <div className="flex items-center space-x-4">
           <div className="text-xs text-gray-500">
@@ -518,7 +518,9 @@ const MarketSentiment: React.FC = () => {
       {/* AI Sentiment Analysis - Key Feature */}
       {sentimentData && (
         <div className="space-y-6 border-t border-gray-200 pt-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Analysis</h3>
+          <div className="flex justify-center mb-4">
+            <h2 className="text-xl font-bold text-neutral-900 uppercase text-center">ANALYSIS</h2>
+          </div>
           
           {/* Trend Analysis with Historical Context */}
           <div className="bg-gradient-to-r from-gray-50 to-neutral-50 p-6 rounded-xl border border-gray-200">

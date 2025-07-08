@@ -309,3 +309,83 @@ class SystemLog(Base):
     log_metadata = Column(JSON)
     
     timestamp = Column(DateTime(timezone=True), server_default=func.now()) 
+
+
+class MarketNewsSummary(Base):
+    __tablename__ = "market_news_summaries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    summary = Column(Text, nullable=False)  # LLM-generated summary of top 10 articles
+    article_ids = Column(JSON, nullable=True)  # List of article IDs included in this summary
+    created_at = Column(DateTime(timezone=True), server_default=func.now()) 
+
+
+class EconomicIndicator(Base):
+    """Economic indicators and fundamental data."""
+    __tablename__ = "economic_indicators"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    indicator_name = Column(String(100), nullable=False, index=True)  # 'cpi', 'unemployment_rate', 'fed_funds_rate', etc.
+    category = Column(String(50), nullable=False, index=True)  # 'inflation', 'employment', 'interest_rates', 'gdp', 'consumer', 'manufacturing'
+    value = Column(Float, nullable=False)
+    unit = Column(String(50))  # '%', 'index', 'millions', 'basis_points', etc.
+    period_type = Column(String(30))  # 'monthly', 'quarterly', 'annual'
+    reference_date = Column(Date, nullable=False, index=True)  # The date the indicator refers to
+    release_date = Column(Date, nullable=False, index=True)  # When the data was released
+    source = Column(String(50), nullable=False)  # 'bls', 'fred', 'bea', etc.
+    is_preliminary = Column(Boolean, default=False)  # Whether this is preliminary data
+    is_revised = Column(Boolean, default=False)  # Whether this is a revision
+    previous_value = Column(Float)  # Previous period value for comparison
+    forecast_value = Column(Float)  # Consensus forecast if available
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class EconomicEvent(Base):
+    """Upcoming economic events and data releases."""
+    __tablename__ = "economic_events"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    event_name = Column(String(200), nullable=False)
+    category = Column(String(50), nullable=False, index=True)
+    scheduled_date = Column(DateTime(timezone=True), nullable=False, index=True)
+    importance = Column(String(10), nullable=False)  # 'high', 'medium', 'low'
+    previous_value = Column(Float)
+    forecast_value = Column(Float)
+    actual_value = Column(Float)  # Filled after release
+    currency = Column(String(3), default='USD')
+    country = Column(String(3), default='US')
+    impact_description = Column(Text)  # Why this event is important
+    source = Column(String(50))
+    is_released = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class FundamentalsAnalysis(Base):
+    """LLM-generated analysis of economic fundamentals."""
+    __tablename__ = "fundamentals_analysis"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    analysis_date = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    overall_assessment = Column(String(50))  # 'expansionary', 'contractionary', 'neutral', 'mixed'
+    economic_cycle_stage = Column(String(30))  # 'early_cycle', 'mid_cycle', 'late_cycle', 'recession'
+    inflation_outlook = Column(String(30))  # 'rising', 'falling', 'stable', 'uncertain'
+    employment_outlook = Column(String(30))  # 'strong', 'moderate', 'weak', 'deteriorating'
+    monetary_policy_stance = Column(String(30))  # 'accommodative', 'neutral', 'restrictive'
+    key_insights = Column(JSON)  # List of key insights from the analysis
+    market_implications = Column(Text)  # What this means for markets
+    sector_impacts = Column(JSON)  # How different sectors might be affected
+    risk_factors = Column(JSON)  # Key risks to watch
+    data_period_start = Column(Date)  # Start of data period analyzed
+    data_period_end = Column(Date)  # End of data period analyzed
+    confidence_level = Column(Float)  # LLM's confidence in the analysis (0-1)
+    indicators_analyzed = Column(JSON)  # List of indicators included in analysis
+    explanation = Column(Text)  # LLM-generated summary explanation for the frontend
+    created_at = Column(DateTime(timezone=True), server_default=func.now()) 
+
+
+class GeminiApiCallLog(Base):
+    __tablename__ = "gemini_api_call_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    purpose = Column(String(100), nullable=False)
+    prompt = Column(Text, nullable=False) 

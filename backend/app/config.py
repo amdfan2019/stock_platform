@@ -5,13 +5,16 @@ import os
 
 class Settings(BaseSettings):
     # Database
-    database_url: str = "postgresql://stockuser:stockpass@localhost:5432/stock_platform"
+    database_url: str = "postgresql://username:password@postgres:5432/stock_platform"
     
     # API Keys
     alpha_vantage_api_key: str = ""
     fmp_api_key: str = ""  # Financial Modeling Prep API key
     news_api_key: str = ""
     google_api_key: str = ""
+    fred_api_key: str = ""  # Federal Reserve Economic Data API key
+    bls_api_key: str = ""   # Bureau of Labor Statistics API key
+    bea_api_key: str = ""
     
     # Redis
     redis_url: str = "redis://localhost:6379/0"
@@ -39,3 +42,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings() 
+
+BEA_API_KEY = '64F47E6C-9460-4586-AD24-6409495032CC'
+
+# Add to settings if using pydantic or similar
+settings.bea_api_key = BEA_API_KEY 

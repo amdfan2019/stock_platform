@@ -28,3 +28,7 @@ ta==0.10.2
 schedule==1.2.0
 loguru==0.7.2
 pytz==2023.3 
+readability-lxml==0.8.1
+lxml[html_clean]==4.9.3
+newspaper3k==0.2.8
+python-dateutil==2.8.2 

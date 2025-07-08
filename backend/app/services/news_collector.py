@@ -11,6 +11,8 @@ from urllib.parse import quote_plus
 import google.generativeai as genai
 from ..config import settings
 from loguru import logger
+from ..models import NewsArticle, MarketNewsSummary
+from ..models import GeminiApiCallLog
 
 
 class NewsCollector:
@@ -409,6 +411,20 @@ class NewsCollector:
             """
             
             response = await self.llm_model.generate_content_async(prompt)
+            
+            # Log Gemini API call
+            try:
+                db_log = SessionLocal()
+                log_entry = GeminiApiCallLog(
+                    timestamp=datetime.utcnow(),
+                    purpose='news_collector',
+                    prompt=prompt
+                )
+                db_log.add(log_entry)
+                db_log.commit()
+                db_log.close()
+            except Exception as e:
+                logger.warning(f"Failed to log Gemini API call: {e}")
             
             # Parse LLM response
             try:

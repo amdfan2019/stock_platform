@@ -3,21 +3,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from .database import get_db, engine, SessionLocal
-from .models import Base, MarketArticle
+from .models import Base, MarketArticle, MarketNewsSummary, EconomicIndicator, EconomicEvent, FundamentalsAnalysis
 from .config import settings
 from .services.stock_screener import StockScreener
-from .services.market_news_processor import MarketNewsProcessor
 from .services.market_sentiment_collector import market_sentiment_collector
-
 from .services.historical_market_collector import historical_collector
 from .services.llm_sentiment_analyzer import llm_sentiment_analyzer
+from .services.simple_market_news import SimpleMarketNews
+from .services.economic_fundamentals_collector import economic_fundamentals_collector
 import asyncio
 from typing import List, Dict, Optional
 from pydantic import BaseModel
-from datetime import datetime, timedelta, date
-from sqlalchemy import desc
+from datetime import datetime, timedelta, date, timezone
+from sqlalchemy import desc, and_
 from loguru import logger
 from contextlib import asynccontextmanager
+from collections import defaultdict
+from . import api
+from .api import router as debug_router
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -51,7 +54,7 @@ app.add_middleware(
 
 # Initialize services
 stock_screener = StockScreener()
-market_news_processor = MarketNewsProcessor()
+market_news_service = SimpleMarketNews()
 
 # Pydantic models for API requests/responses
 class StockSearchRequest(BaseModel):
@@ -156,22 +159,58 @@ async def search_stocks(query: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/market-news")
-async def get_market_news():
-    """Get processed market news with AI summaries."""
+async def get_market_news(background_tasks: BackgroundTasks):
+    """Get processed market news with AI summaries. Serve cached top-10 immediately, trigger update in background."""
     try:
-        articles = await market_news_processor.get_processed_articles()
-        return {"articles": articles}
+        # 1. Query and return the current top-10 from the DB immediately
+        db = SessionLocal()
+        try:
+            all_recent = db.query(MarketArticle).filter(
+                MarketArticle.published_at >= datetime.now(timezone.utc) - timedelta(hours=24)
+            ).order_by(desc(MarketArticle.published_at)).all()
+            formatted = market_news_service._format_articles_for_frontend(all_recent)
+            for a in formatted:
+                a['relevance_score'] = market_news_service._relevance_score(a)
+            def utc_ts(dt):
+                if dt is None:
+                    return 0
+                if isinstance(dt, str):
+                    try:
+                        dt = datetime.fromisoformat(dt)
+                    except Exception:
+                        return 0
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt.timestamp()
+            top = sorted(formatted, key=lambda x: (-x['relevance_score'], -utc_ts(x.get('published_at'))))[:10]
+            top = sorted(top, key=lambda x: -utc_ts(x.get('published_at')))
+        finally:
+            db.close()
+        # 2. Trigger the update/fetch pipeline in the background
+        background_tasks.add_task(market_news_service.get_market_news)
+        # Fetch the most recent summary
+        db = SessionLocal()
+        try:
+            latest_summary = db.query(MarketNewsSummary).order_by(MarketNewsSummary.created_at.desc()).first()
+            news_summary = latest_summary.summary if latest_summary else None
+        finally:
+            db.close()
+        return {
+            "articles": top,
+            "total_articles": len(top),
+            "hours_lookback": 24,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "sources_covered": [s["name"] for s in market_news_service.news_sources],
+            "cache_status": "fresh",
+            "news_summary": news_summary
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/market-news/refresh")
 async def refresh_market_news(background_tasks: BackgroundTasks):
-    """Refresh market news in the background."""
-    try:
-        background_tasks.add_task(market_news_processor.collect_and_process_news)
-        return {"message": "Market news refresh started"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """Refresh market news in the background (no-op for simple version)."""
+    return {"message": "Market news refresh is handled automatically in the new system."}
 
 @app.post("/api/market-data/collect")
 async def collect_market_data():
@@ -382,6 +421,258 @@ async def get_fear_greed_index():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Economic Fundamentals endpoints
+@app.get("/api/fundamentals")
+async def get_fundamentals_data():
+    """Get current economic fundamentals data with LLM analysis."""
+    try:
+        db = SessionLocal()
+        try:
+            # Get latest indicators by category
+            categories = ['inflation', 'employment', 'interest_rates', 'gdp', 'consumer', 'manufacturing', 'home_prices']
+            fundamentals_data = {}
+            
+            for category in categories:
+                # Get the most recent indicators for each indicator_name in this category
+                indicators = db.query(EconomicIndicator).filter(
+                    EconomicIndicator.category == category
+                ).order_by(
+                    EconomicIndicator.indicator_name,
+                    EconomicIndicator.reference_date.desc()
+                ).all()
+                # Group by indicator_name, take up to 5 most recent for each
+                grouped = defaultdict(list)
+                for ind in indicators:
+                    grouped[ind.indicator_name].append(ind)
+                recent_indicators = []
+                for inds in grouped.values():
+                    recent_indicators.extend(inds[:5])
+                # Sort by reference_date descending
+                recent_indicators = sorted(recent_indicators, key=lambda x: x.reference_date, reverse=True)
+                fundamentals_data[category] = [
+                    {
+                        'indicator_name': ind.indicator_name,
+                        'value': ind.value,
+                        'unit': ind.unit,
+                        'reference_date': ind.reference_date.isoformat(),
+                        'previous_value': ind.previous_value,
+                        'period_type': ind.period_type,
+                        'source': ind.source
+                    }
+                    for ind in recent_indicators
+                ]
+            
+            # Get latest fundamentals analysis
+            latest_analysis = db.query(FundamentalsAnalysis).order_by(
+                FundamentalsAnalysis.analysis_date.desc()
+            ).first()
+            
+            analysis_data = None
+            if latest_analysis:
+                analysis_data = {
+                    'overall_assessment': latest_analysis.overall_assessment,
+                    'economic_cycle_stage': latest_analysis.economic_cycle_stage,
+                    'inflation_outlook': latest_analysis.inflation_outlook,
+                    'employment_outlook': latest_analysis.employment_outlook,
+                    'monetary_policy_stance': latest_analysis.monetary_policy_stance,
+                    'key_insights': latest_analysis.key_insights,
+                    'market_implications': latest_analysis.market_implications,
+                    'sector_impacts': latest_analysis.sector_impacts,
+                    'risk_factors': latest_analysis.risk_factors,
+                    'confidence_level': latest_analysis.confidence_level,
+                    'analysis_date': latest_analysis.analysis_date.isoformat(),
+                    'explanation': latest_analysis.explanation
+                }
+            
+            return {
+                'fundamentals_data': fundamentals_data,
+                'analysis': analysis_data,
+                'data_timestamp': datetime.utcnow().isoformat(),
+                'categories': categories
+            }
+            
+        finally:
+            db.close()
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/fundamentals/collect")
+async def collect_fundamentals_data(background_tasks: BackgroundTasks):
+    """Collect fresh economic fundamentals data (incremental - only new dates)."""
+    try:
+        # Start incremental collection in background
+        background_tasks.add_task(economic_fundamentals_collector.collect_latest_data)
+        
+        return {
+            "message": "Incremental economic fundamentals data collection started",
+            "description": "Only new data points will be added, existing dates will be skipped",
+            "status": "background_task_started",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/fundamentals/backfill")
+async def backfill_fundamentals_data(days_back: int = 730, background_tasks: BackgroundTasks = None):
+    """Backfill historical economic fundamentals data."""
+    try:
+        if days_back < 30 or days_back > 3650:
+            raise HTTPException(status_code=400, detail="days_back must be between 30 and 3650 (10 years)")
+        
+        if background_tasks:
+            # Run backfill in background for large requests
+            background_tasks.add_task(economic_fundamentals_collector.backfill_historical_data, days_back)
+            return {
+                "message": f"Historical economic data backfill started for {days_back} days",
+                "description": "This will collect full time series data from FRED API",
+                "status": "background_task_started",
+                "days_back": days_back,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        else:
+            # Run synchronously for smaller requests
+            result = await economic_fundamentals_collector.backfill_historical_data(days_back)
+            return result
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/fundamentals/analyze")
+async def generate_fundamentals_analysis():
+    """Generate new LLM analysis of economic fundamentals."""
+    try:
+        analysis = await economic_fundamentals_collector.generate_fundamentals_analysis()
+        
+        if analysis:
+            # Store the analysis
+            stored = await economic_fundamentals_collector._store_analysis(analysis)
+            return {
+                "message": "Fundamentals analysis generated successfully",
+                "analysis": analysis,
+                "stored": stored
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to generate fundamentals analysis")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/fundamentals/events")
+async def get_upcoming_economic_events():
+    """Get upcoming economic events and data releases."""
+    try:
+        db = SessionLocal()
+        try:
+            # Get upcoming events in the next 30 days
+            start_date = datetime.utcnow()
+            end_date = start_date + timedelta(days=30)
+            
+            upcoming_events = db.query(EconomicEvent).filter(
+                and_(
+                    EconomicEvent.scheduled_date >= start_date,
+                    EconomicEvent.scheduled_date <= end_date
+                )
+            ).order_by(EconomicEvent.scheduled_date).all()
+            
+            events_data = [
+                {
+                    'event_name': event.event_name,
+                    'category': event.category,
+                    'scheduled_date': event.scheduled_date.isoformat(),
+                    'importance': event.importance,
+                    'previous_value': event.previous_value,
+                    'forecast_value': event.forecast_value,
+                    'actual_value': event.actual_value,
+                    'impact_description': event.impact_description,
+                    'is_released': event.is_released
+                }
+                for event in upcoming_events
+            ]
+            
+            return {
+                'upcoming_events': events_data,
+                'period_start': start_date.isoformat(),
+                'period_end': end_date.isoformat(),
+                'total_events': len(events_data)
+            }
+            
+        finally:
+            db.close()
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/fundamentals/stats")
+async def get_fundamentals_database_stats():
+    """Get statistics about the fundamentals data in the database."""
+    try:
+        db = SessionLocal()
+        try:
+            # Get data coverage statistics
+            stats = {}
+            
+            # Overall statistics
+            total_indicators = db.query(EconomicIndicator).count()
+            
+            # Date range coverage
+            oldest_date = db.query(EconomicIndicator.reference_date).order_by(EconomicIndicator.reference_date).first()
+            newest_date = db.query(EconomicIndicator.reference_date).order_by(EconomicIndicator.reference_date.desc()).first()
+            
+            # Count by category
+            categories = ['inflation', 'employment', 'interest_rates', 'gdp', 'consumer', 'manufacturing', 'home_prices']
+            category_counts = {}
+            category_date_ranges = {}
+            
+            for category in categories:
+                count = db.query(EconomicIndicator).filter(EconomicIndicator.category == category).count()
+                category_counts[category] = count
+                
+                # Get date range for this category
+                oldest_cat = db.query(EconomicIndicator.reference_date).filter(
+                    EconomicIndicator.category == category
+                ).order_by(EconomicIndicator.reference_date).first()
+                newest_cat = db.query(EconomicIndicator.reference_date).filter(
+                    EconomicIndicator.category == category
+                ).order_by(EconomicIndicator.reference_date.desc()).first()
+                
+                category_date_ranges[category] = {
+                    'oldest': oldest_cat[0].isoformat() if oldest_cat else None,
+                    'newest': newest_cat[0].isoformat() if newest_cat else None
+                }
+            
+            # Count by indicator
+            indicator_counts = {}
+            for indicator_name in ['cpi_all_items', 'unemployment_rate', 'fed_funds_rate', 'gdp_real']:
+                count = db.query(EconomicIndicator).filter(
+                    EconomicIndicator.indicator_name == indicator_name
+                ).count()
+                if count > 0:
+                    indicator_counts[indicator_name] = count
+            
+            return {
+                'total_data_points': total_indicators,
+                'date_range': {
+                    'oldest': oldest_date[0].isoformat() if oldest_date else None,
+                    'newest': newest_date[0].isoformat() if newest_date else None
+                },
+                'category_counts': category_counts,
+                'category_date_ranges': category_date_ranges,
+                'sample_indicator_counts': indicator_counts,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            
+        finally:
+            db.close()
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Error handlers
 @app.exception_handler(404)
 async def not_found_handler(request, exc):
@@ -403,6 +694,8 @@ async def general_exception_handler(request, exc):
         status_code=500,
         content={"message": f"Unexpected error: {str(exc)}"}
     )
+
+app.include_router(debug_router)
 
 if __name__ == "__main__":
     import uvicorn

@@ -16,7 +16,7 @@ from loguru import logger
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 from ..database import SessionLocal
-from ..models import MarketSentiment, MarketIndicator
+from ..models import MarketSentiment, MarketIndicator, MarketNewsSummary, GeminiApiCallLog
 from ..config import settings
 import google.generativeai as genai
 from contextlib import asynccontextmanager
@@ -421,10 +421,23 @@ class MarketSentimentCollector:
             
             market_summary = "\n".join(summary_parts)
             
+            # --- Inject latest news summary ---
+            latest_news_summary = None
+            db = SessionLocal()
+            try:
+                latest = db.query(MarketNewsSummary).order_by(MarketNewsSummary.created_at.desc()).first()
+                if latest:
+                    latest_news_summary = latest.summary
+            finally:
+                db.close()
+            news_summary_section = f"\n\nLATEST NEWS SUMMARY (from top 10 articles):\n{latest_news_summary}\n" if latest_news_summary else ""
+            # --- End inject ---
+
+            logger.info(f"[TRACE] LLM news_summary_section:\n{news_summary_section}")
+
             prompt = f"""Analyze the current market sentiment based on the following data:
 
-{market_summary}
-
+{market_summary}{news_summary_section}
 Provide a comprehensive analysis that includes:
 1. Overall market sentiment interpretation
 2. Key factors driving current sentiment
@@ -432,7 +445,25 @@ Provide a comprehensive analysis that includes:
 4. Any notable patterns or concerns from the data
 5. Brief outlook based on these indicators
 
-Keep the analysis professional, informative, and under 300 words."""
+IMPORTANT: The 'LATEST NEWS SUMMARY' above is an additional datapoint for sentiment. Integrate it into your analysis, but do NOT overweight it unless there are truly standout developments. Output can be slightly longer if needed to naturally integrate news context.
+
+Keep the analysis professional, informative, and under 400 words."""
+
+            logger.info(f"[TRACE] LLM prompt for sentiment analysis:\n{prompt}")
+
+            # Log Gemini API call
+            try:
+                db_log = SessionLocal()
+                log_entry = GeminiApiCallLog(
+                    timestamp=datetime.utcnow(),
+                    purpose='market_sentiment_analysis',
+                    prompt=prompt
+                )
+                db_log.add(log_entry)
+                db_log.commit()
+                db_log.close()
+            except Exception as e:
+                logger.warning(f"Failed to log Gemini API call: {e}")
 
             response = await asyncio.to_thread(
                 self.model.generate_content,
@@ -453,6 +484,7 @@ Keep the analysis professional, informative, and under 300 words."""
     async def collect_current_sentiment(self) -> Optional[Dict]:
         """Collect comprehensive current market sentiment data."""
         try:
+            logger.info("[TRACE] Entered collect_current_sentiment in MarketSentimentCollector.")
             logger.info("Starting comprehensive sentiment data collection")
             
             # Collect all market data sources in parallel
@@ -628,8 +660,8 @@ Keep the analysis professional, informative, and under 300 words."""
         """Collect CNN Fear & Greed Index with multiple fallback sources."""
         try:
             sources = [
-                ("alternative", "https://api.alternative.me/fng/?limit=1"),
                 ("cnn", "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"),
+                ("alternative", "https://api.alternative.me/fng/?limit=1"),
                 ("feargreedmeter", "https://api.feargreedmeter.com/v1/fgi")
             ]
             

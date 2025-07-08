@@ -7,6 +7,7 @@ from ..config import settings
 from .stock_screener import StockScreener
 from .news_collector import NewsCollector
 from loguru import logger
+from ..models import GeminiApiCallLog
 
 
 class LLMInference:
@@ -325,6 +326,20 @@ class LLMInference:
             """
             
             response = await self.llm_model.generate_content_async(prompt)
+            
+            # Log Gemini API call
+            try:
+                db_log = SessionLocal()
+                log_entry = GeminiApiCallLog(
+                    timestamp=datetime.utcnow(),
+                    purpose='llm_inference',
+                    prompt=prompt
+                )
+                db_log.add(log_entry)
+                db_log.commit()
+                db_log.close()
+            except Exception as e:
+                logger.warning(f"Failed to log Gemini API call: {e}")
             
             # Parse LLM response
             try:

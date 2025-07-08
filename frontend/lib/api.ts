@@ -88,6 +88,36 @@ export const stockAPI = {
     const response = await api.get('/api/market-sentiment');
     return response.data;
   },
+
+  // Get fundamentals data
+  getFundamentals: async (): Promise<any> => {
+    const response = await api.get('/api/fundamentals');
+    return response.data;
+  },
+
+  // Collect fresh fundamentals data (incremental - only new dates)
+  collectFundamentals: async (): Promise<any> => {
+    const response = await api.post('/api/fundamentals/collect');
+    return response.data;
+  },
+
+  // Backfill historical fundamentals data
+  backfillFundamentals: async (daysBack: number = 730): Promise<any> => {
+    const response = await api.post(`/api/fundamentals/backfill?days_back=${daysBack}`);
+    return response.data;
+  },
+
+  // Get fundamentals database statistics
+  getFundamentalsStats: async (): Promise<any> => {
+    const response = await api.get('/api/fundamentals/stats');
+    return response.data;
+  },
+
+  // Get upcoming economic events
+  getEconomicEvents: async (): Promise<any> => {
+    const response = await api.get('/api/fundamentals/events');
+    return response.data;
+  },
 };
 
 export default api; 
