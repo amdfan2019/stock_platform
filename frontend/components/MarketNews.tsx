@@ -68,7 +68,8 @@ const MarketNews: React.FC = () => {
   const fetchData = async () => {
     try {
       setError(null);
-      const response = await fetch('/api/market-news/enhanced');
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/market-news/enhanced`);
       const data = await response.json();
       
       if (data.error) {

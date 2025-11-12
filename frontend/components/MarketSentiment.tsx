@@ -57,7 +57,8 @@ const MarketSentiment: React.FC = () => {
       setError(null);
       setErrorDetails(null);
       
-      const response = await fetch('/api/market-sentiment/enhanced');
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/market-sentiment/enhanced`);
       const data = await response.json();
       
       if (!response.ok) {
