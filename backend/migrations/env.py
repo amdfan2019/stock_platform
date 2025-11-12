@@ -66,10 +66,9 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    # Get database URL from settings if not in config
+    # Always use DATABASE_URL from environment (for Railway/production)
     config_dict = config.get_section(config.config_ini_section, {})
-    if 'sqlalchemy.url' not in config_dict:
-        config_dict['sqlalchemy.url'] = settings.database_url
+    config_dict['sqlalchemy.url'] = settings.database_url
         
     connectable = engine_from_config(
         config_dict,
