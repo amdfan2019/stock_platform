@@ -17,34 +17,58 @@ depends_on = None
 
 
 def upgrade():
-    # Create news_sentiment table
-    op.create_table(
-        'news_sentiment',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('analysis_date', sa.Date(), nullable=True),
-        sa.Column('overall_sentiment', sa.Float(), nullable=True),
-        sa.Column('sentiment_label', sa.String(length=20), nullable=True),
-        sa.Column('confidence_score', sa.Float(), nullable=True),
-        sa.Column('articles_analyzed', sa.Integer(), nullable=True),
-        sa.Column('source_breakdown', sa.JSON(), nullable=True),
-        sa.Column('data_source', sa.String(), nullable=True),
-        sa.Column('created_at', sa.DateTime(), nullable=True),
-        sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_news_sentiment_analysis_date'), 'news_sentiment', ['analysis_date'], unique=False)
-    op.create_index(op.f('ix_news_sentiment_id'), 'news_sentiment', ['id'], unique=False)
+    # Create news_sentiment table (if not exists)
+    try:
+        op.create_table(
+            'news_sentiment',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('analysis_date', sa.Date(), nullable=True),
+            sa.Column('overall_sentiment', sa.Float(), nullable=True),
+            sa.Column('sentiment_label', sa.String(length=20), nullable=True),
+            sa.Column('confidence_score', sa.Float(), nullable=True),
+            sa.Column('articles_analyzed', sa.Integer(), nullable=True),
+            sa.Column('source_breakdown', sa.JSON(), nullable=True),
+            sa.Column('data_source', sa.String(), nullable=True),
+            sa.Column('created_at', sa.DateTime(), nullable=True),
+            sa.PrimaryKeyConstraint('id')
+        )
+        op.create_index(op.f('ix_news_sentiment_analysis_date'), 'news_sentiment', ['analysis_date'], unique=False)
+        op.create_index(op.f('ix_news_sentiment_id'), 'news_sentiment', ['id'], unique=False)
+    except:
+        pass  # Table already exists
 
-    # Update market_sentiment table - remove AAII columns and add news sentiment columns
-    op.drop_column('market_sentiment', 'aaii_neutral_pct')
-    op.drop_column('market_sentiment', 'aaii_bearish_pct') 
-    op.drop_column('market_sentiment', 'aaii_bullish_pct')
+    # Update market_sentiment table - remove AAII columns and add news sentiment columns (if exists)
+    try:
+        op.drop_column('market_sentiment', 'aaii_neutral_pct')
+    except:
+        pass
+    try:
+        op.drop_column('market_sentiment', 'aaii_bearish_pct')
+    except:
+        pass
+    try:
+        op.drop_column('market_sentiment', 'aaii_bullish_pct')
+    except:
+        pass
     
-    op.add_column('market_sentiment', sa.Column('news_sentiment_score', sa.Float(), nullable=True))
-    op.add_column('market_sentiment', sa.Column('news_sentiment_label', sa.String(length=20), nullable=True))
-    op.add_column('market_sentiment', sa.Column('news_confidence', sa.Float(), nullable=True))
+    try:
+        op.add_column('market_sentiment', sa.Column('news_sentiment_score', sa.Float(), nullable=True))
+    except:
+        pass
+    try:
+        op.add_column('market_sentiment', sa.Column('news_sentiment_label', sa.String(length=20), nullable=True))
+    except:
+        pass
+    try:
+        op.add_column('market_sentiment', sa.Column('news_confidence', sa.Float(), nullable=True))
+    except:
+        pass
 
-    # Drop aaii_sentiment table
-    op.drop_table('aaii_sentiment')
+    # Drop aaii_sentiment table (if exists)
+    try:
+        op.drop_table('aaii_sentiment')
+    except:
+        pass  # Table doesn't exist, that's fine
 
 
 def downgrade():
