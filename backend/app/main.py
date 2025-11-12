@@ -34,9 +34,8 @@ from .models import (
     MarketArticle, EconomicIndicator, MarketIndicator
 )
 
-# Create database tables
-# Note: Tables are created via Alembic migrations, not automatically
-# Base.metadata.create_all(bind=engine)
+# Create database tables automatically (for fresh Railway deployment)
+Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
