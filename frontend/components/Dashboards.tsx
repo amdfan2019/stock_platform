@@ -92,7 +92,8 @@ const Dashboards: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`http://localhost:8000/api/stock/${symbol.toUpperCase()}/analysis`);
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/stock/${symbol.toUpperCase()}/analysis`);
       const data = await response.json();
       
       console.log('Stock analysis response:', data);
@@ -119,7 +120,8 @@ const Dashboards: React.FC = () => {
       setAnalyzing(true);
       setError(null);
       
-      const response = await fetch(`http://localhost:8000/api/stock/${symbol.toUpperCase()}/analyze`, {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/stock/${symbol.toUpperCase()}/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -151,14 +153,14 @@ const Dashboards: React.FC = () => {
           }
           
           try {
-            const checkResponse = await fetch(`http://localhost:8000/api/stock/${symbol.toUpperCase()}/analysis`);
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+            const checkResponse = await fetch(`${API_URL}/api/stock/${symbol.toUpperCase()}/analysis`);
             const checkData = await checkResponse.json();
             
             // Check if we have actual analysis data (not just an error)
             if (checkData && !checkData.error && checkData.ticker) {
               setAnalysis(checkData);
               setAnalyzing(false);
-              setLastRefresh(new Date());
             } else {
               // Continue polling
               setTimeout(pollForResults, 3000);
@@ -184,7 +186,8 @@ const Dashboards: React.FC = () => {
 
   const fetchSectors = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/stocks/opportunities/sectors');
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/stocks/opportunities/sectors`);
       const data = await response.json();
       
       if (data.sectors && data.sectors.length > 0) {
@@ -207,18 +210,19 @@ const Dashboards: React.FC = () => {
   const fetchOpportunities = async (sector?: string) => {
     setOpportunitiesLoading(true);
     try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       let buysUrl, sellsUrl, moversUrl;
       
       if (sector) {
         // Fetch by sector
-        buysUrl = `http://localhost:8000/api/stocks/opportunities/best-buys-by-sector?sector=${encodeURIComponent(sector)}&limit=5`;
-        sellsUrl = `http://localhost:8000/api/stocks/opportunities/urgent-sells-by-sector?sector=${encodeURIComponent(sector)}&limit=5`;
-        moversUrl = 'http://localhost:8000/api/stocks/opportunities/big-movers?limit=10'; // Global
+        buysUrl = `${API_URL}/api/stocks/opportunities/best-buys-by-sector?sector=${encodeURIComponent(sector)}&limit=5`;
+        sellsUrl = `${API_URL}/api/stocks/opportunities/urgent-sells-by-sector?sector=${encodeURIComponent(sector)}&limit=5`;
+        moversUrl = `${API_URL}/api/stocks/opportunities/big-movers?limit=10`; // Global
       } else {
         // Fetch overall
-        buysUrl = 'http://localhost:8000/api/stocks/opportunities/best-buys?limit=10';
-        sellsUrl = 'http://localhost:8000/api/stocks/opportunities/urgent-sells?limit=10';
-        moversUrl = 'http://localhost:8000/api/stocks/opportunities/big-movers?limit=10';
+        buysUrl = `${API_URL}/api/stocks/opportunities/best-buys?limit=10`;
+        sellsUrl = `${API_URL}/api/stocks/opportunities/urgent-sells?limit=10`;
+        moversUrl = `${API_URL}/api/stocks/opportunities/big-movers?limit=10`;
       }
       
       const [buysRes, sellsRes, moversRes] = await Promise.all([
