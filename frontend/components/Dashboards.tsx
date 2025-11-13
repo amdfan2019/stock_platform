@@ -628,12 +628,9 @@ const Dashboards: React.FC = () => {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {analysis.pe_ratio && (
                   <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
-                    <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">P/E Ratio (TTM)</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">P/E Ratio</div>
                     <div className="font-bold text-xl text-gray-800 dark:text-white">
                       {analysis.pe_ratio.toFixed(1)}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                      Trailing 12 Months
                     </div>
                   </div>
                 )}
@@ -642,9 +639,6 @@ const Dashboards: React.FC = () => {
                     <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Forward P/E</div>
                     <div className="font-bold text-xl text-gray-800 dark:text-white">
                       {analysis.forward_pe.toFixed(1)}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                      Based on TTM Growth
                     </div>
                   </div>
                 )}
@@ -663,9 +657,11 @@ const Dashboards: React.FC = () => {
                   <div className={`font-bold text-xl ${analysis.revenue_growth && analysis.revenue_growth > 0 ? 'text-green-600 dark:text-green-400' : analysis.revenue_growth && analysis.revenue_growth < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-500'}`}>
                     {analysis.revenue_growth != null ? `${analysis.revenue_growth.toFixed(1)}%` : 'N/A'}
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                    Year over Year
-                  </div>
+                  {analysis.latest_quarter_label && (
+                    <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                      Latest: {analysis.latest_quarter_label}
+                    </div>
+                  )}
                 </div>
                 <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
                   <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">
@@ -674,9 +670,11 @@ const Dashboards: React.FC = () => {
                   <div className={`font-bold text-xl ${analysis.earnings_growth && analysis.earnings_growth > 0 ? 'text-green-600 dark:text-green-400' : analysis.earnings_growth && analysis.earnings_growth < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-500'}`}>
                     {analysis.earnings_growth != null ? `${analysis.earnings_growth.toFixed(1)}%` : 'N/A'}
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                    Year over Year
-                  </div>
+                  {analysis.latest_quarter_label && (
+                    <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                      Latest: {analysis.latest_quarter_label}
+                    </div>
+                  )}
                 </div>
                 {analysis.debt_to_equity && (
                   <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">

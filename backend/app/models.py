@@ -1059,4 +1059,15 @@ class BatchAnalysisJob(Base):
     failed_stocks = Column(Integer, default=0)
     status = Column(String(50), default='running', index=True)  # running, completed, failed, cancelled
     error_message = Column(Text)
-    initiated_by = Column(String(100))  # user, scheduler, etc. 
+    initiated_by = Column(String(100))  # user, scheduler, etc.
+
+
+class ExcludedTicker(Base):
+    """Tickers permanently excluded from analysis and opportunity scanner"""
+    __tablename__ = "excluded_tickers"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String(10), unique=True, nullable=False, index=True)
+    reason = Column(String(255))  # Optional reason for exclusion
+    excluded_at = Column(DateTime(timezone=True), server_default=func.now())
+    excluded_by = Column(String(100))  # user, admin, system, etc. 

@@ -696,6 +696,164 @@ const DebugGeminiCalls: React.FC = () => {
         </table>
       </div>
       </div>
+      
+      {/* Excluded Tickers Section */}
+      <ExcludedTickersManager />
+    </div>
+  );
+};
+
+// Excluded Tickers Manager Component
+const ExcludedTickersManager: React.FC = () => {
+  const [excludedTickers, setExcludedTickers] = useState<Array<{ticker: string; reason: string | null}>>([]);
+  const [newTicker, setNewTicker] = useState('');
+  const [newReason, setNewReason] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchExcludedTickers = async () => {
+    try {
+      const data = await adminGet('/api/excluded-tickers');
+      setExcludedTickers(data.tickers || []);
+    } catch (err) {
+      setError('Failed to fetch excluded tickers');
+    }
+  };
+
+  useEffect(() => {
+    fetchExcludedTickers();
+  }, []);
+
+  const handleAdd = async () => {
+    if (!newTicker.trim()) return;
+    
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      params.append('ticker', newTicker.toUpperCase().trim());
+      if (newReason.trim()) {
+        params.append('reason', newReason.trim());
+      }
+      
+      const result = await adminPost(`/api/excluded-tickers?${params.toString()}`, {});
+      
+      if (result.status === 'success') {
+        setNewTicker('');
+        setNewReason('');
+        fetchExcludedTickers();
+      } else {
+        setError(result.error || 'Failed to add ticker');
+      }
+    } catch (err) {
+      setError('Failed to add ticker');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemove = async (ticker: string) => {
+    if (!confirm(`Remove ${ticker} from exclusion list?`)) return;
+    
+    setLoading(true);
+    setError(null);
+    try {
+      await adminFetch(`/api/excluded-tickers/${ticker}`, { method: 'DELETE' });
+      fetchExcludedTickers();
+    } catch (err) {
+      setError('Failed to remove ticker');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-neutral-900 rounded-lg shadow p-6">
+      <h2 className="text-2xl font-bold mb-4 text-neutral-800 dark:text-white">
+        Excluded Tickers
+      </h2>
+      <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+        Tickers in this list will be excluded from batch analysis and opportunity scanner.
+      </p>
+      
+      {error && (
+        <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">
+          {error}
+        </div>
+      )}
+      
+      {/* Add New Ticker */}
+      <div className="mb-6 p-4 bg-neutral-50 dark:bg-neutral-800 rounded-lg">
+        <h3 className="text-lg font-semibold mb-3 text-neutral-800 dark:text-white">
+          Add Ticker to Exclusion List
+        </h3>
+        <div className="flex gap-3">
+          <input
+            type="text"
+            placeholder="Ticker (e.g., TRMB)"
+            value={newTicker}
+            onChange={(e) => setNewTicker(e.target.value.toUpperCase())}
+            className="px-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-900 text-neutral-800 dark:text-white flex-shrink-0 w-32"
+            disabled={loading}
+          />
+          <input
+            type="text"
+            placeholder="Reason (optional)"
+            value={newReason}
+            onChange={(e) => setNewReason(e.target.value)}
+            className="px-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-900 text-neutral-800 dark:text-white flex-grow"
+            disabled={loading}
+          />
+          <button
+            onClick={handleAdd}
+            disabled={loading || !newTicker.trim()}
+            className="px-6 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-neutral-400 dark:disabled:bg-neutral-600 flex items-center gap-2"
+          >
+            <XCircle className="w-4 h-4" />
+            Exclude
+          </button>
+        </div>
+      </div>
+      
+      {/* Excluded Tickers List */}
+      <div>
+        <h3 className="text-lg font-semibold mb-3 text-neutral-800 dark:text-white">
+          Currently Excluded ({excludedTickers.length})
+        </h3>
+        {excludedTickers.length === 0 ? (
+          <p className="text-neutral-600 dark:text-neutral-400 text-sm">
+            No tickers excluded yet.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {excludedTickers.map((item) => (
+              <div
+                key={item.ticker}
+                className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-800 rounded border border-neutral-200 dark:border-neutral-700"
+              >
+                <div>
+                  <span className="font-mono font-semibold text-neutral-800 dark:text-white">
+                    {item.ticker}
+                  </span>
+                  {item.reason && (
+                    <span className="ml-3 text-sm text-neutral-600 dark:text-neutral-400">
+                      {item.reason}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleRemove(item.ticker)}
+                  disabled={loading}
+                  className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-neutral-400 dark:disabled:bg-neutral-600 flex items-center gap-1"
+                >
+                  <CheckCircle className="w-3 h-3" />
+                  Include
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

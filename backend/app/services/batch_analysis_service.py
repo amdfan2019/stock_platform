@@ -269,11 +269,22 @@ class BatchAnalysisService:
                 
                 db.commit()
                 logger.info(f"Initialized SP500 list with {len(sp500_tickers)} tickers")
-                return sp500_tickers
-            
+                
             # Return existing tickers
             stocks = db.query(SP500Stock).filter(SP500Stock.is_active == True).all()
-            return [stock.ticker for stock in stocks]
+            all_tickers = [stock.ticker for stock in stocks]
+            
+            # Filter out excluded tickers
+            from ..models import ExcludedTicker
+            excluded_tickers = [e.ticker for e in db.query(ExcludedTicker).all()]
+            
+            filtered_tickers = [t for t in all_tickers if t not in excluded_tickers]
+            
+            if excluded_tickers:
+                logger.info(f"Filtered out {len(excluded_tickers)} excluded tickers: {excluded_tickers}")
+            
+            logger.info(f"Returning {len(filtered_tickers)} tickers for batch analysis")
+            return filtered_tickers
             
         finally:
             db.close()

@@ -232,6 +232,11 @@ class OpportunityScanner:
         else:
             return 'hold'
     
+    def _get_excluded_tickers(self, db) -> List[str]:
+        """Get list of excluded tickers"""
+        from ..models import ExcludedTicker
+        return [e.ticker for e in db.query(ExcludedTicker).all()]
+    
     def get_best_buys(self, limit: int = 10) -> List[Dict]:
         """
         Get top 10 best buy opportunities
@@ -241,10 +246,19 @@ class OpportunityScanner:
         """
         db = SessionLocal()
         try:
+            # Get excluded tickers
+            excluded = self._get_excluded_tickers(db)
+            
             # Get all opportunities from latest scan where price < fair_value
-            opportunities = db.query(StockOpportunity).filter(
+            query = db.query(StockOpportunity).filter(
                 StockOpportunity.distance_from_fair_pct < 0  # Price below fair value
-            ).order_by(
+            )
+            
+            # Filter out excluded tickers
+            if excluded:
+                query = query.filter(~StockOpportunity.ticker.in_(excluded))
+            
+            opportunities = query.order_by(
                 StockOpportunity.distance_from_fair_pct.asc()  # Most negative first
             ).limit(limit).all()
             
@@ -262,10 +276,19 @@ class OpportunityScanner:
         """
         db = SessionLocal()
         try:
+            # Get excluded tickers
+            excluded = self._get_excluded_tickers(db)
+            
             # Get all opportunities from latest scan where price > fair_value
-            opportunities = db.query(StockOpportunity).filter(
+            query = db.query(StockOpportunity).filter(
                 StockOpportunity.distance_from_fair_pct > 0  # Price above fair value
-            ).order_by(
+            )
+            
+            # Filter out excluded tickers
+            if excluded:
+                query = query.filter(~StockOpportunity.ticker.in_(excluded))
+            
+            opportunities = query.order_by(
                 StockOpportunity.distance_from_fair_pct.desc()  # Most positive first
             ).limit(limit).all()
             
@@ -285,8 +308,17 @@ class OpportunityScanner:
         try:
             from sqlalchemy import func
             
+            # Get excluded tickers
+            excluded = self._get_excluded_tickers(db)
+            
             # Get all opportunities, ordered by absolute value of 1-day price change
-            opportunities = db.query(StockOpportunity).order_by(
+            query = db.query(StockOpportunity)
+            
+            # Filter out excluded tickers
+            if excluded:
+                query = query.filter(~StockOpportunity.ticker.in_(excluded))
+            
+            opportunities = query.order_by(
                 func.abs(StockOpportunity.price_change_1d).desc()
             ).limit(limit).all()
             
@@ -303,10 +335,19 @@ class OpportunityScanner:
         """
         db = SessionLocal()
         try:
-            opportunities = db.query(StockOpportunity).filter(
+            # Get excluded tickers
+            excluded = self._get_excluded_tickers(db)
+            
+            query = db.query(StockOpportunity).filter(
                 StockOpportunity.sector == sector,
                 StockOpportunity.distance_from_fair_pct < 0
-            ).order_by(
+            )
+            
+            # Filter out excluded tickers
+            if excluded:
+                query = query.filter(~StockOpportunity.ticker.in_(excluded))
+            
+            opportunities = query.order_by(
                 StockOpportunity.distance_from_fair_pct.asc()
             ).limit(limit).all()
             
@@ -323,10 +364,19 @@ class OpportunityScanner:
         """
         db = SessionLocal()
         try:
-            opportunities = db.query(StockOpportunity).filter(
+            # Get excluded tickers
+            excluded = self._get_excluded_tickers(db)
+            
+            query = db.query(StockOpportunity).filter(
                 StockOpportunity.sector == sector,
                 StockOpportunity.distance_from_fair_pct > 0
-            ).order_by(
+            )
+            
+            # Filter out excluded tickers
+            if excluded:
+                query = query.filter(~StockOpportunity.ticker.in_(excluded))
+            
+            opportunities = query.order_by(
                 StockOpportunity.distance_from_fair_pct.desc()
             ).limit(limit).all()
             

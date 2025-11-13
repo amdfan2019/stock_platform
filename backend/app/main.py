@@ -2392,6 +2392,91 @@ async def clear_stock_analyses():
         return {'status': 'error', 'error': str(e)}
 
 
+# ============================================================
+# EXCLUDED TICKERS ENDPOINTS
+# ============================================================
+
+@app.get("/api/excluded-tickers", dependencies=[Depends(verify_admin_key)])
+async def get_excluded_tickers():
+    """Get list of excluded tickers"""
+    try:
+        from .models import ExcludedTicker
+        db = SessionLocal()
+        try:
+            excluded = db.query(ExcludedTicker).order_by(ExcludedTicker.ticker).all()
+            return {
+                'tickers': [{
+                    'ticker': e.ticker,
+                    'reason': e.reason,
+                    'excluded_at': e.excluded_at.isoformat() if e.excluded_at else None,
+                    'excluded_by': e.excluded_by
+                } for e in excluded]
+            }
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error fetching excluded tickers: {e}")
+        return {'status': 'error', 'error': str(e)}
+
+
+@app.post("/api/excluded-tickers", dependencies=[Depends(verify_admin_key)])
+async def add_excluded_ticker(ticker: str, reason: str = None):
+    """Add a ticker to the exclusion list"""
+    try:
+        from .models import ExcludedTicker
+        db = SessionLocal()
+        try:
+            ticker = ticker.upper().strip()
+            
+            # Check if already excluded
+            existing = db.query(ExcludedTicker).filter(ExcludedTicker.ticker == ticker).first()
+            if existing:
+                return {'status': 'error', 'error': f'{ticker} is already excluded'}
+            
+            # Add to exclusion list
+            excluded = ExcludedTicker(
+                ticker=ticker,
+                reason=reason,
+                excluded_by='admin'
+            )
+            db.add(excluded)
+            db.commit()
+            
+            logger.info(f"Added {ticker} to exclusion list")
+            return {'status': 'success', 'ticker': ticker, 'message': f'{ticker} added to exclusion list'}
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error adding excluded ticker: {e}")
+        return {'status': 'error', 'error': str(e)}
+
+
+@app.delete("/api/excluded-tickers/{ticker}", dependencies=[Depends(verify_admin_key)])
+async def remove_excluded_ticker(ticker: str):
+    """Remove a ticker from the exclusion list"""
+    try:
+        from .models import ExcludedTicker
+        db = SessionLocal()
+        try:
+            ticker = ticker.upper().strip()
+            
+            # Find and delete
+            excluded = db.query(ExcludedTicker).filter(ExcludedTicker.ticker == ticker).first()
+            if not excluded:
+                return {'status': 'error', 'error': f'{ticker} is not in exclusion list'}
+            
+            db.delete(excluded)
+            db.commit()
+            
+            logger.info(f"Removed {ticker} from exclusion list")
+            return {'status': 'success', 'ticker': ticker, 'message': f'{ticker} removed from exclusion list'}
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error removing excluded ticker: {e}")
+        return {'status': 'error', 'error': str(e)}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000) 
