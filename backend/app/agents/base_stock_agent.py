@@ -324,29 +324,43 @@ Provide your analysis as a JSON object matching the specified format.
                 import traceback
                 logger.debug(traceback.format_exc())
             
-            # Calculate Forward PE using our own methodology (more reliable than yfinance)
+            # Calculate Forward PE using our own TTM EPS and TTM growth rate
             calculated_forward_pe = None
+            calculated_trailing_pe = None
             try:
-                trailing_eps = info.get('trailingEps')
+                # Use our calculated TTM EPS (more current and accurate than yfinance)
+                # Fallback to yfinance if our calculation didn't work
+                trailing_eps = latest_ttm_eps if latest_ttm_eps is not None else info.get('trailingEps')
                 current_price = info.get('currentPrice') or info.get('regularMarketPrice')
                 
+                # Calculate Trailing PE from our TTM EPS
+                if trailing_eps and current_price:
+                    calculated_trailing_pe = current_price / trailing_eps
+                
                 if trailing_eps and current_price and calculated_earnings_growth is not None:
-                    # Forward EPS = Trailing EPS × (1 + Earnings Growth Rate)
+                    # Forward EPS = TTM EPS × (1 + TTM Earnings Growth Rate)
                     earnings_growth_decimal = calculated_earnings_growth / 100.0
                     forward_eps = trailing_eps * (1 + earnings_growth_decimal)
                     calculated_forward_pe = current_price / forward_eps
-                    logger.info(f"[{self.ticker}] Calculated Forward PE: {calculated_forward_pe:.2f} (from Forward EPS: ${forward_eps:.2f})")
+                    
+                    source = "TTM" if latest_ttm_eps is not None else "yfinance"
+                    logger.info(f"[{self.ticker}] Calculated Forward PE: {calculated_forward_pe:.2f} (Forward EPS: ${forward_eps:.2f}, using {source} TTM EPS: ${trailing_eps:.2f})")
             except Exception as e:
                 logger.warning(f"Could not calculate forward PE: {e}")
             
             # Calculate PEG Ratio (PE / Earnings Growth Rate)
+            # Use our calculated Trailing PE from TTM EPS for consistency
             calculated_peg_ratio = None
             try:
-                trailing_pe = info.get('trailingPE')
+                # Prefer our calculated trailing PE, fallback to yfinance
+                trailing_pe = calculated_trailing_pe if calculated_trailing_pe is not None else info.get('trailingPE')
+                
                 if trailing_pe and calculated_earnings_growth and calculated_earnings_growth > 0:
-                    # PEG = PE / Earnings Growth (as percentage)
+                    # PEG = Trailing PE / TTM Earnings Growth (as percentage)
                     calculated_peg_ratio = trailing_pe / calculated_earnings_growth
-                    logger.info(f"[{self.ticker}] Calculated PEG Ratio: {calculated_peg_ratio:.2f} (PE {trailing_pe:.1f} / Growth {calculated_earnings_growth:.1f}%)")
+                    
+                    source = "calculated" if calculated_trailing_pe is not None else "yfinance"
+                    logger.info(f"[{self.ticker}] Calculated PEG Ratio: {calculated_peg_ratio:.2f} (PE {trailing_pe:.1f} [{source}] / TTM Growth {calculated_earnings_growth:.1f}%)")
             except Exception as e:
                 logger.warning(f"Could not calculate PEG ratio: {e}")
             
@@ -375,10 +389,10 @@ Provide your analysis as a JSON object matching the specified format.
                 'analysis_date': now.strftime('%Y-%m-%d'),
                 'current_quarter': current_quarter,
                 
-                # Valuation metrics
-                'pe_ratio': info.get('trailingPE'),
-                'forward_pe': calculated_forward_pe,  # Use our calculated Forward PE (more reliable than yfinance)
-                'peg_ratio': calculated_peg_ratio,  # Use our calculated PEG (yfinance doesn't provide it)
+                # Valuation metrics (using our TTM-based calculations)
+                'pe_ratio': calculated_trailing_pe if calculated_trailing_pe is not None else info.get('trailingPE'),  # Use our TTM-based PE
+                'forward_pe': calculated_forward_pe,  # Calculated from TTM EPS × (1 + TTM Growth)
+                'peg_ratio': calculated_peg_ratio,  # Calculated from our TTM-based PE / TTM Growth
                 'price_to_book': info.get('priceToBook'),
                 'price_to_sales': info.get('priceToSalesTrailing12Months'),
                 'ev_to_ebitda': info.get('enterpriseToEbitda'),
