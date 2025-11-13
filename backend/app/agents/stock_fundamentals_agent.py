@@ -195,6 +195,10 @@ Be specific about {ticker} and provide actionable fundamental insights.
             
             fundamentals = fundamentals_data.get('current_fundamentals', {})
             
+            # DEBUG: Log what values we're actually storing
+            logger.info(f"[{self.ticker}] STORING: revenue_growth={fundamentals.get('revenue_growth')}, earnings_growth={fundamentals.get('earnings_growth')}")
+            logger.info(f"[{self.ticker}] LLM returned: revenue_growth={analysis.get('revenue_growth')}, earnings_growth={analysis.get('earnings_growth')}")
+            
             fundamentals_analysis = StockFundamentalsAnalysis(
                 ticker=self.ticker,
                 analysis_date=datetime.utcnow(),

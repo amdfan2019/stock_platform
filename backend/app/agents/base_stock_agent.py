@@ -230,6 +230,7 @@ Provide your analysis as a JSON object matching the specified format.
                     
                     earnings_str = f"{calculated_earnings_growth:.1f}%" if calculated_earnings_growth is not None else "N/A (Recovering from Loss)"
                     logger.info(f"[{self.ticker}] {latest_quarter_label} {latest_quarter_date} - Rev Growth: {calculated_revenue_growth:.1f}%, Earnings Growth: {earnings_str}, EPS: ${latest_eps}")
+                    logger.info(f"[{self.ticker}] DEBUG CALC: latest_eps=${latest_eps}, yoy_eps=${yoy_eps}, calculated_earnings_growth={calculated_earnings_growth}")
             except Exception as e:
                 logger.warning(f"Could not calculate quarterly growth: {e}")
             
