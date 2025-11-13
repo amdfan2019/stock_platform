@@ -42,7 +42,7 @@ Focus on:
 
 Output Format (JSON):
 {
-    "historical_context": "2-3 sentence summary of key themes and trends from recent summaries",
+    "historical_context": "CONCISE 2-3 sentence summary of ONLY the most important themes/trends (not a detailed analysis)",
     "persistent_themes": ["theme1", "theme2", "theme3"],
     "sentiment_trend": "improving|deteriorating|stable|mixed",
     "developing_stories": ["story1", "story2"],
@@ -52,7 +52,8 @@ Output Format (JSON):
     "finding_type": "news_history_analysis"
 }
 
-Generate context that helps current news analysis build narrative continuity and avoid repetitive themes.
+IMPORTANT: Keep the historical_context field brief and high-level. This is background context, not the main analysis.
+Generate context that helps current news analysis build narrative continuity without overshadowing today's articles.
 """
         
         super().__init__(agent_id, "news_history", specialized_prompt)
@@ -112,11 +113,11 @@ Generate context that helps current news analysis build narrative continuity and
         try:
             db = SessionLocal()
             
-            # Get summaries from the specified time period
+            # Get summaries from the specified time period (limit to 6 for concise context)
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
             recent_summaries = db.query(MarketNewsSummary).filter(
                 MarketNewsSummary.created_at >= cutoff_date
-            ).order_by(MarketNewsSummary.created_at.desc()).limit(10).all()
+            ).order_by(MarketNewsSummary.created_at.desc()).limit(6).all()
             
             logger.info(f"Found {len(recent_summaries)} summaries since {cutoff_date}")
             

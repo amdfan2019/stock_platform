@@ -82,19 +82,20 @@ Provide specific insights about how news events are likely to affect market dire
             
             # Analyze news with context
             task_description = (
-                "Analyze the market impact of recent news events. "
-                "Identify significant developments, assess sector impacts, and determine overall market implications. "
-                "Focus on events that could move markets or change sentiment. "
+                "Analyze the market impact of TODAY'S recent news events in detail. "
+                "Focus on specific articles, identify significant developments, assess sector impacts, and determine market implications. "
+                "Reference specific headlines, companies, and data points from today's news flow. "
             )
             
-            # Include historical context in task if available
+            # Add historical context as supporting background (if available)
             if historical_context and historical_context.get('historical_context'):
                 task_description += (
-                    f"\n\nHISTORICAL CONTEXT (past {historical_context.get('context_timeframe', '7 days')}):\n"
-                    f"{historical_context['historical_context']}\n"
-                    f"Persistent themes: {', '.join(historical_context.get('persistent_themes', []))}\n"
-                    f"Sentiment trend: {historical_context.get('sentiment_trend', 'unknown')}\n\n"
-                    f"Provide fresh insights and avoid repeating themes that have already been covered extensively."
+                    f"\n\n[Background Context - past {historical_context.get('context_timeframe', '7 days')}]: "
+                    f"{historical_context['historical_context']} "
+                    f"(Themes: {', '.join(historical_context.get('persistent_themes', [])[:3])}; "
+                    f"Trend: {historical_context.get('sentiment_trend', 'stable')})\n\n"
+                    f"PRIMARY FOCUS: Analyze today's specific articles. Use the background context only to identify "
+                    f"if today's news represents a continuation, reversal, or new development."
                 )
             
             news_analysis = await self.analyze_with_context(news_data, task_description)
@@ -107,7 +108,7 @@ Provide specific insights about how news events are likely to affect market dire
         except Exception as e:
             logger.error(f"[{self.agent_id}] Error in news analysis cycle: {e}")
     
-    async def _get_historical_context(self, days_back: int = 7) -> Dict:
+    async def _get_historical_context(self, days_back: int = 5) -> Dict:
         """Get historical context from past news summaries"""
         try:
             from .news_history_agent import NewsHistoryAgent

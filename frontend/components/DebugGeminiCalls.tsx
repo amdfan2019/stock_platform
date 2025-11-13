@@ -545,8 +545,8 @@ const DebugGeminiCalls: React.FC = () => {
             onClick={async () => {
               setRefreshing(prev => ({ ...prev, news: true }));
               try {
-                const data = await adminPost('/api/market-news/force-refresh-summary');
-                alert(data.status === 'processing' ? 'News refreshed!' : `Error: ${data.error}`);
+                const data = await adminPost('/api/agents/news/trigger');
+                alert(data.status === 'success' ? 'News agent triggered with historical context!' : `Error: ${data.error || data.message}`);
               } catch (err) {
                 alert('Failed to refresh news');
               } finally {
