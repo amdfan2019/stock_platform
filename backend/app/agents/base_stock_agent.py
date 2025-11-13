@@ -206,37 +206,57 @@ Provide your analysis as a JSON object matching the specified format.
                     
                     # Calculate earnings growth using Trailing 12-Month (TTM) EPS to smooth volatility
                     # TTM avoids distortion from one-time charges or seasonal effects in single quarters
-                    yoy_eps = None  # Track for LLM context
+                    latest_eps = None
+                    yoy_eps = None
+                    latest_ttm_eps = None
+                    prior_ttm_eps = None
                     
-                    if 'Diluted EPS' in quarterly.index and len(quarterly.loc['Diluted EPS']) >= 8:
-                        # Calculate TTM EPS (sum of last 4 quarters)
-                        latest_ttm_eps = quarterly.loc['Diluted EPS'].iloc[0:4].sum()
-                        # Calculate prior TTM EPS (sum of quarters 4-7, i.e., 1 year ago)
-                        prior_ttm_eps = quarterly.loc['Diluted EPS'].iloc[4:8].sum()
+                    if 'Diluted EPS' in quarterly.index:
+                        eps_data = quarterly.loc['Diluted EPS']
+                        quarters_available = len(eps_data)
+                        logger.info(f"[{self.ticker}] Available quarters of EPS data: {quarters_available}")
                         
-                        # For display/logging, show most recent quarter EPS
-                        latest_eps = quarterly.loc['Diluted EPS'].iloc[0]
-                        yoy_eps = quarterly.loc['Diluted EPS'].iloc[4]
-                        
-                        if prior_ttm_eps != 0 and not (latest_ttm_eps == 0 and prior_ttm_eps == 0):
-                            if prior_ttm_eps > 0:
-                                # Normal case: both profitable on TTM basis
-                                calculated_earnings_growth = ((latest_ttm_eps - prior_ttm_eps) / prior_ttm_eps) * 100
-                                logger.info(f"[{self.ticker}] TTM EPS: Latest ${latest_ttm_eps:.2f}, Prior ${prior_ttm_eps:.2f}, Growth {calculated_earnings_growth:.1f}%")
-                            else:
-                                # Prior TTM was a LOSS - show as "Recovering from Loss"
-                                calculated_earnings_growth = None
-                                logger.info(f"[{self.ticker}] Recovering from loss: TTM EPS ${prior_ttm_eps:.2f} → ${latest_ttm_eps:.2f}")
+                        if quarters_available >= 8:
+                            # Calculate TTM EPS (sum of last 4 quarters)
+                            latest_ttm_eps = quarterly.loc['Diluted EPS'].iloc[0:4].sum()
+                            # Calculate prior TTM EPS (sum of quarters 4-7, i.e., 1 year ago)
+                            prior_ttm_eps = quarterly.loc['Diluted EPS'].iloc[4:8].sum()
+                            
+                            # For display/logging, show most recent quarter EPS
+                            latest_eps = quarterly.loc['Diluted EPS'].iloc[0]
+                            yoy_eps = quarterly.loc['Diluted EPS'].iloc[4]
+                            
+                            if prior_ttm_eps != 0 and not (latest_ttm_eps == 0 and prior_ttm_eps == 0):
+                                if prior_ttm_eps > 0:
+                                    # Normal case: both profitable on TTM basis
+                                    calculated_earnings_growth = ((latest_ttm_eps - prior_ttm_eps) / prior_ttm_eps) * 100
+                                    logger.info(f"[{self.ticker}] TTM EPS: Latest ${latest_ttm_eps:.2f}, Prior ${prior_ttm_eps:.2f}, Growth {calculated_earnings_growth:.1f}%")
+                                else:
+                                    # Prior TTM was a LOSS - show as "Recovering from Loss"
+                                    calculated_earnings_growth = None
+                                    logger.info(f"[{self.ticker}] Recovering from loss: TTM EPS ${prior_ttm_eps:.2f} → ${latest_ttm_eps:.2f}")
+                        else:
+                            logger.warning(f"[{self.ticker}] Insufficient data for TTM calculation: only {quarters_available} quarters available (need 8)")
                     
                     # Calculate revenue growth using TTM (same as earnings, for consistency)
-                    if 'Total Revenue' in quarterly.index and len(quarterly.loc['Total Revenue']) >= 8:
-                        # TTM revenue (sum of last 4 quarters)
-                        latest_ttm_revenue = quarterly.loc['Total Revenue'].iloc[0:4].sum()
-                        # Prior TTM revenue (sum of quarters 4-7)
-                        prior_ttm_revenue = quarterly.loc['Total Revenue'].iloc[4:8].sum()
-                        if prior_ttm_revenue != 0:
-                            calculated_revenue_growth = ((latest_ttm_revenue - prior_ttm_revenue) / prior_ttm_revenue) * 100
-                            logger.info(f"[{self.ticker}] TTM Revenue: Latest ${latest_ttm_revenue/1e9:.2f}B, Prior ${prior_ttm_revenue/1e9:.2f}B, Growth {calculated_revenue_growth:.1f}%")
+                    latest_ttm_revenue = None
+                    prior_ttm_revenue = None
+                    
+                    if 'Total Revenue' in quarterly.index:
+                        revenue_data = quarterly.loc['Total Revenue']
+                        revenue_quarters_available = len(revenue_data)
+                        logger.info(f"[{self.ticker}] Available quarters of revenue data: {revenue_quarters_available}")
+                        
+                        if revenue_quarters_available >= 8:
+                            # TTM revenue (sum of last 4 quarters)
+                            latest_ttm_revenue = quarterly.loc['Total Revenue'].iloc[0:4].sum()
+                            # Prior TTM revenue (sum of quarters 4-7)
+                            prior_ttm_revenue = quarterly.loc['Total Revenue'].iloc[4:8].sum()
+                            if prior_ttm_revenue != 0:
+                                calculated_revenue_growth = ((latest_ttm_revenue - prior_ttm_revenue) / prior_ttm_revenue) * 100
+                                logger.info(f"[{self.ticker}] TTM Revenue: Latest ${latest_ttm_revenue/1e9:.2f}B, Prior ${prior_ttm_revenue/1e9:.2f}B, Growth {calculated_revenue_growth:.1f}%")
+                        else:
+                            logger.warning(f"[{self.ticker}] Insufficient revenue data for TTM: only {revenue_quarters_available} quarters available (need 8)")
                     
                     earnings_str = f"{calculated_earnings_growth:.1f}%" if calculated_earnings_growth is not None else "N/A (Recovering from Loss)"
                     logger.info(f"[{self.ticker}] {latest_quarter_label} {latest_quarter_date} - Rev Growth: {calculated_revenue_growth:.1f}%, Earnings Growth: {earnings_str}, EPS: ${latest_eps}")
@@ -314,12 +334,12 @@ Provide your analysis as a JSON object matching the specified format.
                 'earnings_growth': calculated_earnings_growth,  # TTM earnings growth, None if recovering from loss
                 'latest_eps': latest_eps,  # Most recent quarter EPS (for display)
                 'yoy_eps': yoy_eps,  # Single quarter YoY comparison (for context)
-                'latest_ttm_eps': latest_ttm_eps if 'latest_ttm_eps' in locals() else None,  # TTM EPS (sum of last 4 quarters)
-                'prior_ttm_eps': prior_ttm_eps if 'prior_ttm_eps' in locals() else None,  # Prior TTM EPS
+                'latest_ttm_eps': latest_ttm_eps,  # TTM EPS (sum of last 4 quarters)
+                'prior_ttm_eps': prior_ttm_eps,  # Prior TTM EPS
                 'latest_quarter_date': latest_quarter_date,
                 'latest_quarter_label': latest_quarter_label,
                 'earnings_quarterly_growth': info.get('earningsQuarterlyGrowth'),
-                'recovering_from_loss': ('prior_ttm_eps' in locals() and prior_ttm_eps is not None and prior_ttm_eps < 0 and calculated_earnings_growth is None),
+                'recovering_from_loss': (prior_ttm_eps is not None and prior_ttm_eps < 0 and calculated_earnings_growth is None),
                 
                 # Financial health
                 'total_cash': info.get('totalCash'),
