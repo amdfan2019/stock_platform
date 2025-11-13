@@ -24,39 +24,42 @@ class NewsAgent(BaseAgent):
             agent_id = "market_news_001"
         
         specialized_prompt = """
-You are a Market News Analyst providing clear, actionable insights for long-term investors.
+You are a Market News Summarizer. Your job: Read today's articles and tell investors what happened.
 
-Your job: Summarize today's key market news and explain what it means for the broader investment landscape over the next 6-12 months.
+PRIMARY TASK: SUMMARIZE the actual articles (70% of your output)
+- What specific companies are in the news? What did they announce?
+- What did the Federal Reserve or government officials say?
+- What earnings, products, deals, or policy changes were announced?
+- Be specific: mention company names, products, numbers when available
 
-Focus on:
-- What happened today (key events, earnings, policy changes, major announcements)
-- What this means for long-term trends and themes
-- Which sectors or industries are affected
-- What investors should watch going forward
+SECONDARY TASK: Brief context (30% of your output)
+- What does this mean for long-term investors?
+- Which themes or trends does this reinforce?
 
 DO NOT:
-- Predict short-term price movements or rallies
-- Mention specific index levels or percentage moves
-- Reference technical indicators or market timing
+- Write general commentary without mentioning specific articles
+- Predict short-term price movements
+- Mention index levels, percentage moves, or technical indicators
 - Quote article counts, sentiment scores, or system details
-- Focus on day-to-day volatility
 
 Output Format (JSON):
 {
     "overall_news_impact": "Very Positive|Positive|Neutral|Negative|Very Negative",
-    "major_events": ["event1", "event2", "event3"],
+    "major_events": ["Specific event 1", "Specific event 2", "Specific event 3"],
     "key_themes": ["theme1", "theme2"],
     "sector_impacts": {"Technology": "positive", "Healthcare": "neutral"},
-    "market_implications": "2-3 paragraph summary written for investors: What happened today? What does it mean for long-term investors? What should they watch? Write in clear, accessible language.",
+    "market_implications": "2-3 paragraph news summary: [Paragraph 1: SUMMARIZE 4-5 specific articles with company names and what happened] [Paragraph 2: Brief implications for long-term investors and what to watch]",
     "confidence": float (0-1),
     "finding_type": "market_news_analysis"
 }
 
-Example market_implications (good):
-"Major tech companies reported strong earnings this quarter, highlighting resilient consumer demand for AI-enabled products. This reinforces the long-term growth narrative for the sector. Federal Reserve commentary suggested patience on rate cuts, which favors quality companies with strong balance sheets. Investors should monitor upcoming inflation data and corporate guidance for Q4, as these will shape the investment landscape heading into 2026."
+Example (GOOD - specific articles summarized):
+"Apple announced new AI features for iPhone 16, projecting strong holiday sales. Tesla reported Q3 deliveries above analyst expectations despite production challenges in Germany. Federal Reserve Chair Powell indicated rates would remain elevated into early 2026, citing persistent core inflation. JPMorgan raised full-year guidance following strong investment banking results.
 
-Example market_implications (bad):
-"Across 15 articles with an average sentiment of 0.68, markets may see a short-term rally. The S&P 500 is up 1.2% today. RSI indicates oversold conditions."
+For long-term investors, the tech earnings strength reinforces AI adoption themes, while higher-for-longer rates favor financial stocks over high-growth names. Watch upcoming inflation data and Q4 guidance from retailers as key signals for 2026 positioning."
+
+Example (BAD - generic, no articles):
+"Markets showed mixed sentiment today as various factors influenced investor outlook. The technology sector faces both opportunities and challenges going forward. Investors should remain cautious and monitor economic indicators."
 """
         
         super().__init__(agent_id, "market_news", specialized_prompt)
@@ -81,19 +84,23 @@ Example market_implications (bad):
             
             # Analyze news with context
             task_description = (
-                "Summarize today's key market news for long-term investors:\n\n"
-                "1. What are the major events? (Specific companies, sectors, policy changes)\n"
-                "2. What does this mean for the 6-12 month outlook? (Not short-term rallies)\n"
-                "3. Which long-term themes or trends does this reinforce or challenge?\n"
-                "4. What should investors watch going forward?\n\n"
-                "Write in clear, accessible language. Focus on substance, not sentiment scores or technical details."
+                "Read today's articles and write a news summary for investors:\n\n"
+                "PRIMARY (70%): SUMMARIZE the specific articles\n"
+                "- What companies are in the news? What did they announce?\n"
+                "- What did Fed officials or policymakers say?\n"
+                "- What earnings, deals, or product launches happened?\n"
+                "- Be specific: Use company names, quote key figures, mention actual events\n\n"
+                "SECONDARY (30%): Brief implications\n"
+                "- What does this mean for long-term investors?\n"
+                "- What should they watch?\n\n"
+                "Focus on WHAT HAPPENED (specific articles), not generic market commentary."
             )
             
             # Add historical context as brief background (if available)
             if historical_context and historical_context.get('historical_context'):
                 task_description += (
-                    f"\n\n[Recent context for reference]: {historical_context['historical_context']}\n"
-                    f"Use this only to identify if today represents a continuation, reversal, or new development."
+                    f"\n\n[Recent trend]: {historical_context['historical_context']}\n"
+                    f"(Use only to note if today continues or reverses this trend)"
                 )
             
             news_analysis = await self.analyze_with_context(news_data, task_description)
