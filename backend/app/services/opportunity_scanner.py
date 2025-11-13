@@ -102,11 +102,6 @@ class OpportunityScanner:
             StockAnalysis.ticker == ticker
         ).order_by(StockAnalysis.analysis_date.desc()).first()
         
-        # Override sector to "Megacap" if market cap > $500B
-        if latest_analysis and latest_analysis.market_cap:
-            if latest_analysis.market_cap > 500_000_000_000:  # $500B
-                sector = "Megacap"
-        
         if not latest_analysis:
             logger.debug(f"{ticker}: No analysis found, skipping")
             return None
@@ -337,16 +332,28 @@ class OpportunityScanner:
         Get top best buy opportunities for a specific sector
         
         Returns stocks in the sector that are most undervalued
+        Handles virtual "Megacap" sector for companies > $500B
         """
+        from ..models import StockAnalysis
         db = SessionLocal()
         try:
             # Get excluded tickers
             excluded = self._get_excluded_tickers(db)
             
-            query = db.query(StockOpportunity).filter(
-                StockOpportunity.sector == sector,
-                StockOpportunity.distance_from_fair_pct < 0
-            )
+            # Handle Megacap as a virtual sector (filter by market cap)
+            if sector == 'Megacap':
+                query = db.query(StockOpportunity).join(
+                    StockAnalysis,
+                    StockOpportunity.ticker == StockAnalysis.ticker
+                ).filter(
+                    StockAnalysis.market_cap > 500_000_000_000,
+                    StockOpportunity.distance_from_fair_pct < 0
+                )
+            else:
+                query = db.query(StockOpportunity).filter(
+                    StockOpportunity.sector == sector,
+                    StockOpportunity.distance_from_fair_pct < 0
+                )
             
             # Filter out excluded tickers
             if excluded:
@@ -366,16 +373,28 @@ class OpportunityScanner:
         Get top urgent sell signals for a specific sector
         
         Returns stocks in the sector that are most overvalued
+        Handles virtual "Megacap" sector for companies > $500B
         """
+        from ..models import StockAnalysis
         db = SessionLocal()
         try:
             # Get excluded tickers
             excluded = self._get_excluded_tickers(db)
             
-            query = db.query(StockOpportunity).filter(
-                StockOpportunity.sector == sector,
-                StockOpportunity.distance_from_fair_pct > 0
-            )
+            # Handle Megacap as a virtual sector (filter by market cap)
+            if sector == 'Megacap':
+                query = db.query(StockOpportunity).join(
+                    StockAnalysis,
+                    StockOpportunity.ticker == StockAnalysis.ticker
+                ).filter(
+                    StockAnalysis.market_cap > 500_000_000_000,
+                    StockOpportunity.distance_from_fair_pct > 0
+                )
+            else:
+                query = db.query(StockOpportunity).filter(
+                    StockOpportunity.sector == sector,
+                    StockOpportunity.distance_from_fair_pct > 0
+                )
             
             # Filter out excluded tickers
             if excluded:

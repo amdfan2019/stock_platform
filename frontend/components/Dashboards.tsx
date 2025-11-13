@@ -203,8 +203,9 @@ const Dashboards: React.FC = () => {
       const data = await response.json();
       
       if (data.sectors && data.sectors.length > 0) {
-        // Sort by stock count and take top 5
-        const topSectors = data.sectors.sort((a: Sector, b: Sector) => b.count - a.count).slice(0, 5);
+        // Backend already returns Megacap first (if exists), followed by sectors sorted by count
+        // Show top 8 sectors
+        const topSectors = data.sectors.slice(0, 8);
         setSectors(topSectors);
         const firstSector = topSectors[0]?.name || '';
         setSelectedSector(firstSector);

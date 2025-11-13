@@ -2095,14 +2095,14 @@ async def get_big_movers(limit: int = 10):
 
 @app.get("/api/stocks/opportunities/sectors")
 async def get_sectors():
-    """Get list of sectors with stock counts (includes dynamic 'Megacap' sector for companies > $500B)"""
+    """Get list of sectors with stock counts (includes virtual 'Megacap' sector for companies > $500B)"""
     try:
-        from .models import StockOpportunity
+        from .models import StockOpportunity, StockAnalysis
         from sqlalchemy import func
         
         db = SessionLocal()
         try:
-            # Query from StockOpportunity to include dynamic "Megacap" sector
+            # Get regular sectors
             sectors = db.query(
                 StockOpportunity.sector,
                 func.count(StockOpportunity.ticker).label('stock_count')
@@ -2114,9 +2114,23 @@ async def get_sectors():
                 func.count(StockOpportunity.ticker).desc()
             ).all()
             
+            sector_list = [{'name': s.sector, 'count': s.stock_count} for s in sectors]
+            
+            # Add virtual "Megacap" sector by counting stocks with market cap > $500B
+            megacap_count = db.query(func.count(StockOpportunity.ticker)).join(
+                StockAnalysis,
+                StockOpportunity.ticker == StockAnalysis.ticker
+            ).filter(
+                StockAnalysis.market_cap > 500_000_000_000
+            ).scalar()
+            
+            if megacap_count > 0:
+                # Add Megacap at the beginning
+                sector_list.insert(0, {'name': 'Megacap', 'count': megacap_count})
+            
             return {
-                'sectors': [{'name': s.sector, 'count': s.stock_count} for s in sectors],
-                'total_sectors': len(sectors)
+                'sectors': sector_list,
+                'total_sectors': len(sector_list)
             }
         finally:
             db.close()
