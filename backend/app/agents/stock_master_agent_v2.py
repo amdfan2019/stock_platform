@@ -158,6 +158,7 @@ IMPORTANT: Write risk_factors and catalysts as clean, readable sentences. DO NOT
             pe_vs_industry = fundamentals_analysis.get('pe_vs_industry', 'N/A')
             profit_margin = fundamentals_basic.get('profit_margins', 'N/A')
             revenue_growth = fundamentals_basic.get('revenue_growth', 'N/A')
+            earnings_growth = fundamentals_basic.get('earnings_growth', 'N/A')
             sector = fundamentals_basic.get('sector', 'N/A')
             industry = fundamentals_basic.get('industry', 'N/A')
             
@@ -195,7 +196,7 @@ IMPORTANT: Write risk_factors and catalysts as clean, readable sentences. DO NOT
                 f"- DO NOT mention 'upcoming' earnings or quarters unless specifically discussing future guidance\n"
                 f"- When discussing earnings announcements, use dates: 'November 19' not 'Q3 earnings'\n\n"
                 f"Perform comprehensive analysis for {self.ticker}.\n\n"
-                f"Current Market Data:\n"
+                f"Current Market Data (from Yahoo Finance):\n"
                 f"- Price: ${current_price:.2f}\n"
                 f"- Current PE: {pe_ratio}\n"
                 f"- Forward PE: {forward_pe}\n"
@@ -203,7 +204,9 @@ IMPORTANT: Write risk_factors and catalysts as clean, readable sentences. DO NOT
                 f"- PE vs Industry: {pe_vs_industry} (premium/discount to industry)\n"
                 f"- Sector/Industry: {sector} / {industry}\n"
                 f"- Profit Margin: {profit_margin}\n"
-                f"- Revenue Growth (TTM): {revenue_growth}\n\n"
+                f"- Revenue Growth: {revenue_growth}\n"
+                f"- Earnings Growth: {earnings_growth}\n"
+                f"NOTE: You also have access to latest_eps (single quarter) and latest_ttm_eps (TTM) to assess seasonality.\n\n"
                 f"LONG-TERM FUNDAMENTALS TREND ANALYSIS (from Fundamentals Agent):\n"
                 f"- Revenue Growth Trend: {revenue_trend} (over past 4-8 quarters)\n"
                 f"- Earnings Consistency: {earnings_consistency} (0-1 score)\n"

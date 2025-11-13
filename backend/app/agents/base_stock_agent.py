@@ -173,13 +173,11 @@ Provide your analysis as a JSON object matching the specified format.
             stock = yf.Ticker(self.ticker)
             info = stock.info
             
-            # Initialize all calculated variables (in case of exceptions)
+            # Initialize all variables (in case of exceptions)
             calculated_revenue_growth = None
             calculated_earnings_growth = None
             latest_eps = None
-            yoy_eps = None
             latest_ttm_eps = None
-            prior_ttm_eps = None
             latest_quarter_date = None
             latest_quarter_label = None
             calculated_trailing_pe = None
@@ -188,28 +186,25 @@ Provide your analysis as a JSON object matching the specified format.
             
             try:
                 # ============================================================
-                # GET TTM EPS DIRECTLY FROM YFINANCE (always available)
+                # GET EPS DATA FROM YFINANCE (TTM + Latest Quarter)
                 # ============================================================
                 # Get Latest TTM EPS from yfinance (already split-adjusted and up to date)
                 latest_ttm_eps = info.get('trailingEps')
                 if latest_ttm_eps:
-                    logger.info(f"[{self.ticker}] Latest TTM EPS (yfinance): ${latest_ttm_eps:.2f} (split-adjusted)")
+                    logger.info(f"[{self.ticker}] Latest TTM EPS (yfinance): ${latest_ttm_eps:.2f}")
                 else:
                     logger.warning(f"[{self.ticker}] No trailingEps available from yfinance")
                 
-                # Get quarterly income statement - for quarter date and growth calculation
+                # Get quarterly income statement - for latest quarter EPS and date
                 quarterly = stock.quarterly_income_stmt
                 
-                # Get earnings_dates for extended historical data (8+ quarters)
-                earnings_dates = stock.earnings_dates
-                
-                # Start with quarterly_income_stmt for the most recent data
-                if not quarterly.empty and len(quarterly.columns) >= 5:
-                    # Get the actual fiscal quarter end date (for context only - LLM won't mention quarters)
+                # Get latest quarter date and single quarter EPS (for context on seasonality)
+                if not quarterly.empty and len(quarterly.columns) >= 1:
+                    # Get the actual fiscal quarter end date
                     fiscal_quarter_end = quarterly.columns[0]
                     latest_quarter_date = fiscal_quarter_end.strftime('%Y-%m-%d')
                     
-                    # We store quarter label for internal logging, but LLM is instructed NOT to mention it
+                    # We store quarter label for internal logging
                     quarter_month = fiscal_quarter_end.month
                     quarter_year = fiscal_quarter_end.year
                     if quarter_month in [1, 2, 3]:
@@ -221,133 +216,84 @@ Provide your analysis as a JSON object matching the specified format.
                     else:
                         quarter_num = 'Q4'
                     latest_quarter_label = f"{quarter_num} {quarter_year}"
-                    logger.info(f"[{self.ticker}] Latest quarter ended: {latest_quarter_date} (internal label: {latest_quarter_label})")
                     
-                    # ============================================================
-                    # CALCULATE GROWTH RATES using quarterly data
-                    # ============================================================
-                    # Get quarterly EPS data for growth calculation
+                    # Get latest single quarter EPS (to show seasonality vs TTM)
                     if 'Diluted EPS' in quarterly.index:
                         eps_data_quarterly = quarterly.loc['Diluted EPS']
                         latest_eps = eps_data_quarterly.iloc[0]  # Most recent quarter
-                        
-                        # Calculate Prior TTM EPS (1 year ago) from yfinance's split-adjusted quarterly data
-                        if len(eps_data_quarterly) >= 8:
-                            # Prior TTM = sum of quarters 4-7 (1 year ago)
-                            # These are already split-adjusted by yfinance
-                            prior_ttm_eps = sum(eps_data_quarterly.iloc[4:8])
-                            logger.info(f"[{self.ticker}] Prior TTM EPS (sum of qtrs 4-7): ${prior_ttm_eps:.2f}")
-                        
-                        # Calculate TTM EPS Growth
-                        if latest_ttm_eps and prior_ttm_eps and prior_ttm_eps != 0:
-                            if prior_ttm_eps > 0:
-                                calculated_earnings_growth = ((latest_ttm_eps - prior_ttm_eps) / prior_ttm_eps) * 100
-                                logger.info(f"[{self.ticker}] TTM EPS Growth: {calculated_earnings_growth:.1f}% (Latest: ${latest_ttm_eps:.2f}, Prior: ${prior_ttm_eps:.2f})")
-                            else:
-                                # Recovering from loss
-                                calculated_earnings_growth = None
-                                logger.info(f"[{self.ticker}] Recovering from loss (TTM): ${prior_ttm_eps:.2f} → ${latest_ttm_eps:.2f}")
-                        elif len(eps_data_quarterly) >= 5:
-                            # Fallback: Single quarter YoY growth if TTM not available
-                            yoy_eps = eps_data_quarterly.iloc[4]
-                            if yoy_eps and yoy_eps > 0:
-                                calculated_earnings_growth = ((latest_eps - yoy_eps) / yoy_eps) * 100
-                                logger.info(f"[{self.ticker}] YoY EPS Growth (single quarter): {calculated_earnings_growth:.1f}%")
-                            else:
-                                calculated_earnings_growth = None
-                        else:
-                            logger.warning(f"[{self.ticker}] Insufficient EPS data for growth calculation")
+                        logger.info(f"[{self.ticker}] Latest quarter: {latest_quarter_date} - Single Quarter EPS: ${latest_eps:.2f}, TTM EPS: ${latest_ttm_eps:.2f if latest_ttm_eps else 'N/A'}")
                     else:
                         logger.warning(f"[{self.ticker}] No Diluted EPS data in quarterly_income_stmt")
-                
                 else:
                     logger.warning(f"[{self.ticker}] No quarterly income statement data available")
                 
                 # ============================================================
-                # TTM REVENUE CALCULATION (yfinance doesn't provide TTM revenue)
+                # USE YAHOO FINANCE'S GROWTH METRICS DIRECTLY
                 # ============================================================
-                # Yahoo Finance doesn't have a direct TTM revenue field, so we calculate it
-                # from quarterly_income_stmt (which is already split-adjusted)
-                latest_ttm_revenue = None
-                prior_ttm_revenue = None
-                
-                if not quarterly.empty and 'Total Revenue' in quarterly.index:
-                    revenue_data = quarterly.loc['Total Revenue']
-                    revenue_quarters_available = len(revenue_data)
-                    logger.info(f"[{self.ticker}] Available quarters of revenue data: {revenue_quarters_available}")
-                    
-                    if revenue_quarters_available >= 8:
-                        # TTM revenue (sum of last 4 quarters)
-                        latest_ttm_revenue = revenue_data.iloc[0:4].sum()
-                        # Prior TTM revenue (sum of quarters 4-7)
-                        prior_ttm_revenue = revenue_data.iloc[4:8].sum()
-                        if prior_ttm_revenue != 0:
-                            calculated_revenue_growth = ((latest_ttm_revenue - prior_ttm_revenue) / prior_ttm_revenue) * 100
-                            logger.info(f"[{self.ticker}] TTM Revenue: Latest ${latest_ttm_revenue/1e9:.2f}B, Prior ${prior_ttm_revenue/1e9:.2f}B, Growth {calculated_revenue_growth:.1f}%")
-                    elif revenue_quarters_available >= 5:
-                        # Fallback: Single quarter YoY revenue growth
-                        latest_revenue = revenue_data.iloc[0]
-                        yoy_revenue = revenue_data.iloc[4]
-                        if yoy_revenue != 0:
-                            calculated_revenue_growth = ((latest_revenue - yoy_revenue) / yoy_revenue) * 100
-                            logger.info(f"[{self.ticker}] Single quarter YoY Revenue Growth: {calculated_revenue_growth:.1f}%")
+                # Yahoo provides earnings growth - use it directly
+                calculated_earnings_growth = info.get('earningsGrowth')
+                if calculated_earnings_growth is not None:
+                    calculated_earnings_growth = calculated_earnings_growth * 100  # Convert to percentage
+                    logger.info(f"[{self.ticker}] Earnings Growth (from yfinance): {calculated_earnings_growth:.1f}%")
+                else:
+                    # Fallback to quarterly growth if available
+                    quarterly_growth = info.get('earningsQuarterlyGrowth')
+                    if quarterly_growth is not None:
+                        calculated_earnings_growth = quarterly_growth * 100
+                        logger.info(f"[{self.ticker}] Earnings Quarterly Growth (from yfinance): {calculated_earnings_growth:.1f}%")
                     else:
-                        logger.warning(f"[{self.ticker}] Insufficient revenue data: only {revenue_quarters_available} quarters available (need 5+)")
+                        logger.warning(f"[{self.ticker}] No earnings growth data available from yfinance")
                 
-                # Log summary of calculations
-                earnings_str = f"{calculated_earnings_growth:.1f}%" if calculated_earnings_growth is not None else "N/A (Recovering from Loss)"
+                # ============================================================
+                # USE YAHOO FINANCE'S REVENUE GROWTH DIRECTLY
+                # ============================================================
+                # Yahoo provides revenue growth - use it directly
+                calculated_revenue_growth = info.get('revenueGrowth')
+                if calculated_revenue_growth is not None:
+                    calculated_revenue_growth = calculated_revenue_growth * 100  # Convert to percentage
+                    logger.info(f"[{self.ticker}] Revenue Growth (from yfinance): {calculated_revenue_growth:.1f}%")
+                else:
+                    logger.warning(f"[{self.ticker}] No revenue growth data available from yfinance")
+                
+                # Log summary
+                earnings_str = f"{calculated_earnings_growth:.1f}%" if calculated_earnings_growth is not None else "N/A"
                 revenue_str = f"{calculated_revenue_growth:.1f}%" if calculated_revenue_growth is not None else "N/A"
-                if latest_quarter_label and latest_eps is not None:
-                    logger.info(f"[{self.ticker}] {latest_quarter_label} {latest_quarter_date} - Rev Growth: {revenue_str}, Earnings Growth: {earnings_str}, EPS: ${latest_eps}")
-                    logger.info(f"[{self.ticker}] DEBUG CALC: latest_eps=${latest_eps}, yoy_eps={yoy_eps}, calculated_earnings_growth={calculated_earnings_growth}")
+                if latest_quarter_date and latest_eps is not None:
+                    logger.info(f"[{self.ticker}] Quarter ended {latest_quarter_date} - Latest Quarter EPS: ${latest_eps:.2f}, TTM EPS: ${latest_ttm_eps:.2f if latest_ttm_eps else 'N/A'}")
+                    logger.info(f"[{self.ticker}] Growth Metrics - Revenue: {revenue_str}, Earnings: {earnings_str}")
             except Exception as e:
                 logger.warning(f"Could not calculate quarterly growth: {e}")
                 import traceback
                 logger.debug(traceback.format_exc())
             
             # ============================================================
-            # FORWARD PE CALCULATION (Yahoo doesn't provide Forward PE)
+            # USE YAHOO FINANCE'S PE RATIOS DIRECTLY
             # ============================================================
-            # We calculate Forward PE using:
-            # - Latest TTM EPS (from yfinance's trailingEps - split-adjusted)
-            # - TTM Earnings Growth Rate (our calculated YoY growth)
-            # Formula: Forward PE = Current Price / (TTM EPS × (1 + Growth Rate))
             try:
-                # Use yfinance's TTM EPS (split-adjusted and up to date)
-                trailing_eps = latest_ttm_eps if latest_ttm_eps is not None else info.get('trailingEps')
-                current_price = info.get('currentPrice') or info.get('regularMarketPrice')
+                # Use yfinance's PE ratios directly
+                calculated_trailing_pe = info.get('trailingPE')
+                if calculated_trailing_pe:
+                    logger.info(f"[{self.ticker}] Trailing PE (from yfinance): {calculated_trailing_pe:.1f}")
                 
-                # Calculate Trailing PE from TTM EPS
-                if trailing_eps and current_price:
-                    calculated_trailing_pe = current_price / trailing_eps
-                    logger.info(f"[{self.ticker}] Trailing PE: {calculated_trailing_pe:.1f} (Price ${current_price:.2f} / TTM EPS ${trailing_eps:.2f})")
-                
-                # Calculate Forward PE using TTM growth
-                if trailing_eps and current_price and calculated_earnings_growth is not None:
-                    # Forward EPS = TTM EPS × (1 + TTM Earnings Growth Rate)
-                    earnings_growth_decimal = calculated_earnings_growth / 100.0
-                    forward_eps = trailing_eps * (1 + earnings_growth_decimal)
-                    calculated_forward_pe = current_price / forward_eps
-                    logger.info(f"[{self.ticker}] Forward PE: {calculated_forward_pe:.1f} (using TTM growth {calculated_earnings_growth:.1f}%, Forward EPS: ${forward_eps:.2f})")
+                calculated_forward_pe = info.get('forwardPE')
+                if calculated_forward_pe:
+                    logger.info(f"[{self.ticker}] Forward PE (from yfinance): {calculated_forward_pe:.1f}")
+                else:
+                    logger.warning(f"[{self.ticker}] No forward PE available from yfinance")
             except Exception as e:
-                logger.warning(f"Could not calculate forward PE: {e}")
+                logger.warning(f"Could not get PE ratios: {e}")
             
             # ============================================================
-            # PEG RATIO CALCULATION
+            # USE YAHOO FINANCE'S PEG RATIO DIRECTLY
             # ============================================================
-            # PEG Ratio = PE / Growth Rate (measures if PE is justified by growth)
-            # - Use Trailing PE (from our TTM EPS)
-            # - Use TTM Earnings Growth Rate
             try:
-                # Use our calculated trailing PE (more accurate than yfinance)
-                trailing_pe = calculated_trailing_pe if calculated_trailing_pe is not None else info.get('trailingPE')
-                
-                if trailing_pe and calculated_earnings_growth and calculated_earnings_growth > 0:
-                    # PEG = Trailing PE / TTM Earnings Growth (as percentage)
-                    calculated_peg_ratio = trailing_pe / calculated_earnings_growth
-                    logger.info(f"[{self.ticker}] PEG Ratio: {calculated_peg_ratio:.2f} (PE {trailing_pe:.1f} / TTM Growth {calculated_earnings_growth:.1f}%)")
+                calculated_peg_ratio = info.get('pegRatio')
+                if calculated_peg_ratio:
+                    logger.info(f"[{self.ticker}] PEG Ratio (from yfinance): {calculated_peg_ratio:.2f}")
+                else:
+                    logger.warning(f"[{self.ticker}] No PEG ratio available from yfinance")
             except Exception as e:
-                logger.warning(f"Could not calculate PEG ratio: {e}")
+                logger.warning(f"Could not get PEG ratio: {e}")
             
             # Calculate current quarter for context
             now = datetime.now()
@@ -388,17 +334,13 @@ Provide your analysis as a JSON object matching the specified format.
                 'return_on_assets': (info.get('returnOnAssets') * 100) if info.get('returnOnAssets') else None,
                 'return_on_equity': (info.get('returnOnEquity') * 100) if info.get('returnOnEquity') else None,
                 
-                # Growth metrics - CALCULATED using TTM (Trailing 12-Month) to smooth volatility
-                'revenue_growth': calculated_revenue_growth,  # TTM revenue growth
-                'earnings_growth': calculated_earnings_growth,  # TTM earnings growth, None if recovering from loss
-                'latest_eps': latest_eps,  # Most recent quarter EPS (for display)
-                'yoy_eps': yoy_eps,  # Single quarter YoY comparison (for context)
-                'latest_ttm_eps': latest_ttm_eps,  # TTM EPS (sum of last 4 quarters)
-                'prior_ttm_eps': prior_ttm_eps,  # Prior TTM EPS
+                # Growth metrics - FROM YAHOO FINANCE
+                'revenue_growth': calculated_revenue_growth,  # Revenue growth (from yfinance)
+                'earnings_growth': calculated_earnings_growth,  # Earnings growth (from yfinance)
+                'latest_eps': latest_eps,  # Most recent quarter EPS (for seasonality context)
+                'latest_ttm_eps': latest_ttm_eps,  # TTM EPS (for smoothed view vs quarterly)
                 'latest_quarter_date': latest_quarter_date,
                 'latest_quarter_label': latest_quarter_label,
-                'earnings_quarterly_growth': info.get('earningsQuarterlyGrowth'),
-                'recovering_from_loss': (prior_ttm_eps is not None and prior_ttm_eps < 0 and calculated_earnings_growth is None),
                 
                 # Financial health
                 'total_cash': info.get('totalCash'),
