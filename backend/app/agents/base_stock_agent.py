@@ -208,134 +208,63 @@ Provide your analysis as a JSON object matching the specified format.
                     # Full quarter label with year (e.g., "Q3 2025")
                     latest_quarter_label = f"{quarter_num} {quarter_year}"
                     
-                    # Get latest EPS from quarterly income statement (Diluted EPS)
+                    # ============================================================
+                    # TTM EPS CALCULATION (using yfinance's split-adjusted data)
+                    # ============================================================
                     latest_eps = None
-                    yoy_eps = None
                     latest_ttm_eps = None
                     prior_ttm_eps = None
                     
+                    # Get Latest TTM EPS from yfinance (already split-adjusted and up to date)
+                    latest_ttm_eps = info.get('trailingEps')
+                    if latest_ttm_eps:
+                        logger.info(f"[{self.ticker}] Latest TTM EPS (yfinance): ${latest_ttm_eps:.2f} (split-adjusted)")
+                    
+                    # Get quarterly EPS data for Prior TTM calculation
                     if 'Diluted EPS' in quarterly.index:
                         eps_data_quarterly = quarterly.loc['Diluted EPS']
-                        latest_eps = eps_data_quarterly.iloc[0]
+                        latest_eps = eps_data_quarterly.iloc[0]  # Most recent quarter
                         
-                        # Check for stock splits to adjust historical EPS data
-                        split_adjustment_factor = 1.0
-                        split_date_cutoff = None
-                        try:
-                            splits = stock.splits
-                            if not splits.empty:
-                                # We compare Latest TTM (quarters 0-3) vs Prior TTM (quarters 4-7)
-                                # If a split occurred AFTER quarter 4's date, then quarters 4-7 are pre-split
-                                # and need to be adjusted (divided by split ratio) to be comparable
-                                
-                                # Get the date of the 4th most recent quarter (start of "prior TTM" window)
-                                if len(eps_data_quarterly) >= 5:
-                                    quarter_4_date = eps_data_quarterly.index[4]
-                                    
-                                    # Find splits that occurred after this date
-                                    for split_date, split_ratio in splits.items():
-                                        if split_date > quarter_4_date:
-                                            split_adjustment_factor *= split_ratio
-                                            split_date_cutoff = split_date
-                                            logger.info(f"[{self.ticker}] Stock split detected: {split_ratio}:1 on {split_date.strftime('%Y-%m-%d')} - will adjust EPS from before this date")
-                                            
-                                            # Adjust the quarterly EPS data itself for older quarters
-                                            for idx in range(len(eps_data_quarterly)):
-                                                quarter_date = eps_data_quarterly.index[idx]
-                                                if quarter_date < split_date:
-                                                    eps_data_quarterly.iloc[idx] = eps_data_quarterly.iloc[idx] / split_ratio
-                                                    logger.info(f"[{self.ticker}] Adjusted EPS for quarter {quarter_date.strftime('%Y-%m-%d')}: divided by {split_ratio}")
-                        except Exception as e:
-                            logger.debug(f"[{self.ticker}] Could not check for stock splits: {e}")
+                        # Calculate Prior TTM EPS (1 year ago) from yfinance's split-adjusted quarterly data
+                        if len(eps_data_quarterly) >= 8:
+                            # Prior TTM = sum of quarters 4-7 (1 year ago)
+                            # These are already split-adjusted by yfinance
+                            prior_ttm_eps = sum(eps_data_quarterly.iloc[4:8])
+                            logger.info(f"[{self.ticker}] Prior TTM EPS (sum of qtrs 4-7): ${prior_ttm_eps:.2f}")
                         
-                        # Now combine with earnings_dates for extended history (for TTM calculation)
-                        # earnings_dates provides 8+ quarters but may lag; quarterly_income_stmt is more current
-                        quarters_available_quarterly = len(eps_data_quarterly)
-                        
-                        # Try to use earnings_dates for historical data if available
-                        if earnings_dates is not None and not earnings_dates.empty:
-                            earnings = earnings_dates[
-                                (earnings_dates['Event Type'] == 'Earnings') & 
-                                (earnings_dates['Reported EPS'].notna())
-                            ].copy().sort_index(ascending=False)
-                            
-                            quarters_available_earnings = len(earnings)
-                            logger.info(f"[{self.ticker}] Available EPS data: {quarters_available_quarterly} quarters (quarterly_income_stmt), {quarters_available_earnings} quarters (earnings_dates)")
-                        else:
-                            quarters_available_earnings = 0
-                            logger.info(f"[{self.ticker}] Available EPS data: {quarters_available_quarterly} quarters (quarterly_income_stmt only)")
-                        
-                        # Strategy: Use quarterly_income_stmt (most current) + earnings_dates (extended history)
-                        # This handles cases where quarterly_income_stmt has latest quarter but earnings_dates lags
-                        
-                        if quarters_available_quarterly >= 5 and quarters_available_earnings >= 8:
-                            # Hybrid approach: Use quarterly_income_stmt for recent quarters, fill in with earnings_dates for older data
-                            # This gives us 8+ quarters for TTM even when earnings_dates hasn't updated yet
-                            
-                            # Build a combined EPS series: latest from quarterly, older from earnings_dates
-                            combined_eps = list(eps_data_quarterly.iloc[0:min(4, quarters_available_quarterly)])
-                            
-                            # Fill in remaining quarters from earnings_dates (skipping any that overlap)
-                            if quarters_available_earnings >= 8 - len(combined_eps):
-                                for i in range(len(combined_eps), 8):
-                                    # Map to earnings_dates index (may be offset if quarterly has newer data)
-                                    earnings_idx = i - 1  # Adjust for potential lag
-                                    if earnings_idx >= 0 and earnings_idx < len(earnings):
-                                        eps_value = earnings['Reported EPS'].iloc[earnings_idx]
-                                        
-                                        # Apply split adjustment to older quarters (beyond the 4 most recent)
-                                        # These are pre-split, so we divide by the split ratio to make them comparable
-                                        if i >= 4 and split_adjustment_factor != 1.0:
-                                            eps_value = eps_value / split_adjustment_factor
-                                            
-                                        combined_eps.append(eps_value)
-                            
-                            if len(combined_eps) >= 8:
-                                # Calculate TTM (now split-adjusted)
-                                latest_ttm_eps = sum(combined_eps[0:4])
-                                prior_ttm_eps = sum(combined_eps[4:8])
-                                
-                                if split_adjustment_factor != 1.0:
-                                    logger.info(f"[{self.ticker}] Split-adjusted Prior TTM EPS: ${prior_ttm_eps:.2f} (adjusted by factor {split_adjustment_factor:.1f})")
-                                
-                                if quarters_available_quarterly >= 5:
-                                    yoy_eps = eps_data_quarterly.iloc[4]
-                                
-                                if prior_ttm_eps != 0 and not (latest_ttm_eps == 0 and prior_ttm_eps == 0):
-                                    if prior_ttm_eps > 0:
-                                        calculated_earnings_growth = ((latest_ttm_eps - prior_ttm_eps) / prior_ttm_eps) * 100
-                                        logger.info(f"[{self.ticker}] TTM EPS Growth: {calculated_earnings_growth:.1f}% (Latest TTM: ${latest_ttm_eps:.2f}, Prior: ${prior_ttm_eps:.2f})")
-                                    else:
-                                        calculated_earnings_growth = None
-                                        logger.info(f"[{self.ticker}] Recovering from loss (TTM): ${prior_ttm_eps:.2f} → ${latest_ttm_eps:.2f}")
-                        elif quarters_available_quarterly >= 5:
-                            # Fallback: Use quarterly_income_stmt for YoY comparison (single quarter)
+                        # Calculate TTM EPS Growth
+                        if latest_ttm_eps and prior_ttm_eps and prior_ttm_eps != 0:
+                            if prior_ttm_eps > 0:
+                                calculated_earnings_growth = ((latest_ttm_eps - prior_ttm_eps) / prior_ttm_eps) * 100
+                                logger.info(f"[{self.ticker}] TTM EPS Growth: {calculated_earnings_growth:.1f}% (Latest: ${latest_ttm_eps:.2f}, Prior: ${prior_ttm_eps:.2f})")
+                            else:
+                                # Recovering from loss
+                                calculated_earnings_growth = None
+                                logger.info(f"[{self.ticker}] Recovering from loss (TTM): ${prior_ttm_eps:.2f} → ${latest_ttm_eps:.2f}")
+                        elif len(eps_data_quarterly) >= 5:
+                            # Fallback: Single quarter YoY growth if TTM not available
                             yoy_eps = eps_data_quarterly.iloc[4]
-                            
-                            # Apply split adjustment to YoY EPS if needed
-                            if yoy_eps and split_adjustment_factor != 1.0:
-                                yoy_eps = yoy_eps / split_adjustment_factor
-                                logger.info(f"[{self.ticker}] Split-adjusted YoY EPS: ${yoy_eps:.2f} (factor: {split_adjustment_factor:.1f})")
-                            
-                            if yoy_eps and yoy_eps != 0 and not (latest_eps == 0 and yoy_eps == 0):
-                                if yoy_eps > 0:
-                                    calculated_earnings_growth = ((latest_eps - yoy_eps) / yoy_eps) * 100
-                                    logger.info(f"[{self.ticker}] Single quarter YoY EPS Growth: {calculated_earnings_growth:.1f}% (Latest: ${latest_eps:.2f}, YoY: ${yoy_eps:.2f})")
-                                else:
-                                    calculated_earnings_growth = None
-                                    logger.info(f"[{self.ticker}] Recovering from loss (quarterly): ${yoy_eps:.2f} → ${latest_eps:.2f}")
+                            if yoy_eps and yoy_eps > 0:
+                                calculated_earnings_growth = ((latest_eps - yoy_eps) / yoy_eps) * 100
+                                logger.info(f"[{self.ticker}] YoY EPS Growth (single quarter): {calculated_earnings_growth:.1f}%")
+                            else:
+                                calculated_earnings_growth = None
                         else:
-                            logger.warning(f"[{self.ticker}] Insufficient EPS data: only {quarters_available_quarterly} quarters from quarterly_income_stmt (need 5+ for growth calc)")
-                    
-                else:
-                    logger.warning(f"[{self.ticker}] No earnings dates data available or insufficient quarterly data")
+                            logger.warning(f"[{self.ticker}] Insufficient EPS data for growth calculation")
+                    else:
+                        logger.warning(f"[{self.ticker}] No Diluted EPS data in quarterly_income_stmt")
                 
-                # Calculate revenue growth using TTM (from quarterly income statement)
-                # Note: We still use quarterly_income_stmt for revenue as earnings_dates doesn't have revenue
+                else:
+                    logger.warning(f"[{self.ticker}] No quarterly income statement data available")
+                
+                # ============================================================
+                # TTM REVENUE CALCULATION (yfinance doesn't provide TTM revenue)
+                # ============================================================
+                # Yahoo Finance doesn't have a direct TTM revenue field, so we calculate it
+                # from quarterly_income_stmt (which is already split-adjusted)
                 latest_ttm_revenue = None
                 prior_ttm_revenue = None
                 
-                # quarterly was already loaded above
                 if not quarterly.empty and 'Total Revenue' in quarterly.index:
                     revenue_data = quarterly.loc['Total Revenue']
                     revenue_quarters_available = len(revenue_data)
@@ -370,43 +299,50 @@ Provide your analysis as a JSON object matching the specified format.
                 import traceback
                 logger.debug(traceback.format_exc())
             
-            # Calculate Forward PE using our own TTM EPS and TTM growth rate
+            # ============================================================
+            # FORWARD PE CALCULATION (Yahoo doesn't provide Forward PE)
+            # ============================================================
+            # We calculate Forward PE using:
+            # - Latest TTM EPS (from yfinance's trailingEps - split-adjusted)
+            # - TTM Earnings Growth Rate (our calculated YoY growth)
+            # Formula: Forward PE = Current Price / (TTM EPS × (1 + Growth Rate))
             calculated_forward_pe = None
             calculated_trailing_pe = None
             try:
-                # Use our calculated TTM EPS (more current and accurate than yfinance)
-                # Fallback to yfinance if our calculation didn't work
+                # Use yfinance's TTM EPS (split-adjusted and up to date)
                 trailing_eps = latest_ttm_eps if latest_ttm_eps is not None else info.get('trailingEps')
                 current_price = info.get('currentPrice') or info.get('regularMarketPrice')
                 
-                # Calculate Trailing PE from our TTM EPS
+                # Calculate Trailing PE from TTM EPS
                 if trailing_eps and current_price:
                     calculated_trailing_pe = current_price / trailing_eps
+                    logger.info(f"[{self.ticker}] Trailing PE: {calculated_trailing_pe:.1f} (Price ${current_price:.2f} / TTM EPS ${trailing_eps:.2f})")
                 
+                # Calculate Forward PE using TTM growth
                 if trailing_eps and current_price and calculated_earnings_growth is not None:
                     # Forward EPS = TTM EPS × (1 + TTM Earnings Growth Rate)
                     earnings_growth_decimal = calculated_earnings_growth / 100.0
                     forward_eps = trailing_eps * (1 + earnings_growth_decimal)
                     calculated_forward_pe = current_price / forward_eps
-                    
-                    source = "TTM" if latest_ttm_eps is not None else "yfinance"
-                    logger.info(f"[{self.ticker}] Calculated Forward PE: {calculated_forward_pe:.2f} (Forward EPS: ${forward_eps:.2f}, using {source} TTM EPS: ${trailing_eps:.2f})")
+                    logger.info(f"[{self.ticker}] Forward PE: {calculated_forward_pe:.1f} (using TTM growth {calculated_earnings_growth:.1f}%, Forward EPS: ${forward_eps:.2f})")
             except Exception as e:
                 logger.warning(f"Could not calculate forward PE: {e}")
             
-            # Calculate PEG Ratio (PE / Earnings Growth Rate)
-            # Use our calculated Trailing PE from TTM EPS for consistency
+            # ============================================================
+            # PEG RATIO CALCULATION
+            # ============================================================
+            # PEG Ratio = PE / Growth Rate (measures if PE is justified by growth)
+            # - Use Trailing PE (from our TTM EPS)
+            # - Use TTM Earnings Growth Rate
             calculated_peg_ratio = None
             try:
-                # Prefer our calculated trailing PE, fallback to yfinance
+                # Use our calculated trailing PE (more accurate than yfinance)
                 trailing_pe = calculated_trailing_pe if calculated_trailing_pe is not None else info.get('trailingPE')
                 
                 if trailing_pe and calculated_earnings_growth and calculated_earnings_growth > 0:
                     # PEG = Trailing PE / TTM Earnings Growth (as percentage)
                     calculated_peg_ratio = trailing_pe / calculated_earnings_growth
-                    
-                    source = "calculated" if calculated_trailing_pe is not None else "yfinance"
-                    logger.info(f"[{self.ticker}] Calculated PEG Ratio: {calculated_peg_ratio:.2f} (PE {trailing_pe:.1f} [{source}] / TTM Growth {calculated_earnings_growth:.1f}%)")
+                    logger.info(f"[{self.ticker}] PEG Ratio: {calculated_peg_ratio:.2f} (PE {trailing_pe:.1f} / TTM Growth {calculated_earnings_growth:.1f}%)")
             except Exception as e:
                 logger.warning(f"Could not calculate PEG ratio: {e}")
             
