@@ -189,13 +189,13 @@ Provide your analysis as a JSON object matching the specified format.
                 
                 # Start with quarterly_income_stmt for the most recent data
                 if not quarterly.empty and len(quarterly.columns) >= 5:
-                    # Get the actual fiscal quarter end date
+                    # Get the actual fiscal quarter end date (for context only - LLM won't mention quarters)
                     fiscal_quarter_end = quarterly.columns[0]
                     latest_quarter_date = fiscal_quarter_end.strftime('%Y-%m-%d')
+                    
+                    # We store quarter label for internal logging, but LLM is instructed NOT to mention it
                     quarter_month = fiscal_quarter_end.month
                     quarter_year = fiscal_quarter_end.year
-                    
-                    # Determine quarter label (Q1, Q2, Q3, Q4) with YEAR
                     if quarter_month in [1, 2, 3]:
                         quarter_num = 'Q1'
                     elif quarter_month in [4, 5, 6]:
@@ -204,9 +204,8 @@ Provide your analysis as a JSON object matching the specified format.
                         quarter_num = 'Q3'
                     else:
                         quarter_num = 'Q4'
-                    
-                    # Full quarter label with year (e.g., "Q3 2025")
                     latest_quarter_label = f"{quarter_num} {quarter_year}"
+                    logger.info(f"[{self.ticker}] Latest quarter ended: {latest_quarter_date} (internal label: {latest_quarter_label})")
                     
                     # ============================================================
                     # TTM EPS CALCULATION (using yfinance's split-adjusted data)
