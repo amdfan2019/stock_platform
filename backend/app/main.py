@@ -1367,7 +1367,7 @@ async def trigger_all_agents(background_tasks: BackgroundTasks):
 
 @app.get("/api/stock/{ticker}/analysis")
 async def get_stock_analysis(ticker: str):
-    """Get stock analysis from database (last generated analysis)"""
+    """Get stock analysis from database with live current price"""
     try:
         ticker = ticker.upper()
         logger.info(f"Retrieving stored analysis for {ticker} from database")
@@ -1397,6 +1397,22 @@ async def get_stock_analysis(ticker: str):
                 'error': analysis['error'],
                 'has_analysis': False
             }
+        
+        # Fetch live current price (non-blocking)
+        import yfinance as yf
+        import asyncio
+        try:
+            def fetch_live_price():
+                stock = yf.Ticker(ticker)
+                hist = stock.history(period="1d")
+                return hist['Close'].iloc[-1] if not hist.empty else None
+            
+            live_price = await asyncio.to_thread(fetch_live_price)
+            if live_price:
+                analysis['current_price'] = float(live_price)
+                logger.debug(f"{ticker}: Updated to live price ${live_price:.2f}")
+        except Exception as e:
+            logger.warning(f"{ticker}: Could not fetch live price, using cached: {e}")
         
         return {
             'ticker': ticker,
@@ -1688,26 +1704,47 @@ app.include_router(debug_router)
 
 @app.get("/api/market-sentiment/enhanced")
 async def get_enhanced_market_sentiment():
-    """Get comprehensive market sentiment data with agent analysis"""
+    """Get comprehensive market sentiment data with agent analysis - LIVE prices for momentum"""
     try:
+        import yfinance as yf
+        import asyncio
         db = SessionLocal()
         
-        # Get current market indicators (frontend display - exclude treasury/dollar/dow)
-        frontend_indicators = ['sp500', 'nasdaq', 'vix']  # Removed dow
+        # Fetch LIVE market indicators (S&P 500, Nasdaq, VIX)
         current_indicators = {}
         
-        for indicator_type in frontend_indicators:
-            latest_indicator = db.query(MarketIndicator).filter(
-                MarketIndicator.indicator_type == indicator_type
-            ).order_by(MarketIndicator.timestamp.desc()).first()
-            
-            if latest_indicator:
-                current_indicators[indicator_type] = {
-                    'value': latest_indicator.value,
-                    'change_pct': latest_indicator.change_pct,
-                    'timestamp': latest_indicator.timestamp.isoformat(),
-                    'data_source': latest_indicator.data_source
-                }
+        async def fetch_live_indicator(symbol: str, indicator_type: str):
+            """Fetch live price and 5-day change for an indicator"""
+            try:
+                def get_data():
+                    stock = yf.Ticker(symbol)
+                    hist = stock.history(period="5d")
+                    if hist.empty or len(hist) < 2:
+                        return None
+                    current_val = hist['Close'].iloc[-1]
+                    start_val = hist['Close'].iloc[0]
+                    change_pct = ((current_val - start_val) / start_val) * 100
+                    return {'value': float(current_val), 'change_pct': float(change_pct)}
+                
+                data = await asyncio.to_thread(get_data)
+                if data:
+                    current_indicators[indicator_type] = {
+                        'value': data['value'],
+                        'change_pct': data['change_pct'],
+                        'timestamp': datetime.utcnow().isoformat(),
+                        'data_source': 'yahoo_finance_live'
+                    }
+                    logger.debug(f"Live {indicator_type}: ${data['value']:.2f} ({data['change_pct']:+.2f}%)")
+            except Exception as e:
+                logger.warning(f"Could not fetch live {indicator_type}: {e}")
+        
+        # Fetch all indicators in parallel
+        await asyncio.gather(
+            fetch_live_indicator('^GSPC', 'sp500'),   # S&P 500
+            fetch_live_indicator('^IXIC', 'nasdaq'),  # Nasdaq
+            fetch_live_indicator('^VIX', 'vix'),      # VIX
+            return_exceptions=True
+        )
         
         # Get Fear & Greed Index
         market_sentiment_collector = MarketSentimentCollector()
