@@ -447,7 +447,7 @@ async def get_market_news_enhanced():
             else:
                 sentiment_counts["neutral"] += 1
         
-        # Format articles with expected frontend structure
+        # Format articles with clean, user-facing structure (no technical scores)
         formatted_articles = []
         for article in top_articles:
             # Clean up title - remove .html and improve formatting
@@ -466,23 +466,13 @@ async def get_market_news_enhanced():
                 "published_at": article["published_at"],
                 "url": article.get("url", ""),
                 "market_signal": article.get("market_signal", "neutral"),
-                "significance_score": article.get("confidence", 0.5),
-                "sentiment_label": article.get("market_signal", "neutral"),
-                "sentiment_score": article.get("confidence", 0.5),
-                "key_points": article.get("bullet_points", []),
-                "impact_level": "high" if article.get("confidence", 0.5) > 0.7 else "medium"
+                "key_points": article.get("bullet_points", [])
             })
         
         return {
             "articles": formatted_articles,
             "summary": news_summary,
-            "total_articles": len(formatted_articles),
-            "sentiment_breakdown": sentiment_counts,
-            "agent_intelligence": {
-                "has_ai_analysis": bool(latest_summary),
-                "last_updated": latest_summary.created_at.isoformat() if latest_summary else datetime.now(timezone.utc).isoformat(),
-                "analysis_quality": "high" if len(formatted_articles) >= 5 else "medium"
-            }
+            "sentiment_breakdown": sentiment_counts
         }
         
     except Exception as e:

@@ -51,13 +51,13 @@ Output Format (JSON):
     "sector_impacts": {"Technology": "positive", "Healthcare": "neutral"},
     "risk_events": ["risk1", "risk2"],
     "opportunity_events": ["opportunity1", "opportunity2"],
-    "market_implications": "Brief analysis of overall market impact",
+    "market_implications": "User-facing analysis of overall market impact in natural language. DO NOT mention article counts, technical scores, or system implementation details. Write as if speaking directly to investors.",
     "emerging_trends": ["trend1", "trend2"],
     "confidence": float (0-1),
     "finding_type": "market_news_analysis"
 }
 
-Provide specific insights about how news events are likely to affect market direction and sentiment.
+IMPORTANT: In 'market_implications', write natural language analysis without exposing technical details (e.g., don't say "across 20 articles" or mention sentiment scores). Focus on what matters to investors.
 """
         
         super().__init__(agent_id, "market_news", specialized_prompt)

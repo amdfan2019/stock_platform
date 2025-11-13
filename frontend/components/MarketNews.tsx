@@ -11,23 +11,18 @@ interface NewsArticle {
   published_at: string;
   url: string;
   market_signal: string;
-  significance_score: number;
-  sentiment_label: string;
-  sentiment_score: number;
   key_points: string[];
-  impact_level: string;
 }
 
 interface MarketNewsData {
   articles: NewsArticle[];
   summary: string;
-  total_articles: number;
   sentiment_breakdown: {
     positive: number;
     negative: number;
     neutral: number;
   };
-  agent_intelligence: {
+  agent_intelligence?: {
     has_ai_analysis: boolean;
     last_updated: string;
     analysis_quality: string;
