@@ -108,10 +108,6 @@ class StockMemorySystem:
 class BaseStockAgent(BaseAgent):
     """Base class for stock-specific agents"""
     
-    # Class-level cache for fundamental data (shared across all agents)
-    _fundamentals_cache = {}  # {ticker: {'data': {...}, 'timestamp': datetime}}
-    _cache_ttl_hours = 24  # Cache fundamentals for 24 hours
-    
     def __init__(self, agent_id: str, agent_type: str, ticker: str, specialized_prompt: str):
         super().__init__(agent_id, agent_type, specialized_prompt)
         self.ticker = ticker.upper()
@@ -155,21 +151,10 @@ Provide your analysis as a JSON object matching the specified format.
         
         return full_prompt
         
-    async def get_stock_fundamentals(self, force_refresh: bool = False) -> Dict:
-        """Get fundamental data for this stock (with 24h caching)"""
-        # Check cache first (unless force_refresh)
-        if not force_refresh and self.ticker in self._fundamentals_cache:
-            cached = self._fundamentals_cache[self.ticker]
-            age_hours = (datetime.utcnow() - cached['timestamp']).total_seconds() / 3600
-            if age_hours < self._cache_ttl_hours:
-                logger.debug(f"[{self.ticker}] Using cached fundamentals ({age_hours:.1f}h old)")
-                return cached['data']
-        
-        if force_refresh:
-            logger.info(f"[{self.ticker}] Force refreshing fundamentals (bypassing cache)")
-        
+    async def get_stock_fundamentals(self) -> Dict:
+        """Get fundamental data for this stock (NO CACHING - always fresh)"""
         try:
-            logger.debug(f"[{self.ticker}] Fetching fresh fundamentals from yfinance")
+            logger.info(f"[{self.ticker}] Fetching fresh fundamentals from yfinance")
             stock = yf.Ticker(self.ticker)
             info = stock.info
             
@@ -359,13 +344,6 @@ Provide your analysis as a JSON object matching the specified format.
                 'shares_outstanding': info.get('sharesOutstanding'),
                 'float_shares': info.get('floatShares')
             }
-            
-            # Cache the fundamentals data
-            self._fundamentals_cache[self.ticker] = {
-                'data': fundamentals,
-                'timestamp': datetime.utcnow()
-            }
-            logger.debug(f"[{self.ticker}] Cached fundamentals for 24 hours")
             
             return fundamentals
             
