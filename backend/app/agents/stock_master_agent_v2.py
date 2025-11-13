@@ -38,8 +38,12 @@ CRITICAL WRITING STYLE:
 - Write as a PROFESSIONAL FINANCIAL REPORT in THIRD PERSON ONLY
 - NEVER use first person: NO "I", "my", "we", "our", "I believe", "my assessment", "in my opinion"
 - Present analysis as objective observations and facts, not personal opinions
+- DO NOT mention specific numbers in narrative text (PE ratios, growth %, prices, margins) - user sees these separately
+- Describe trends qualitatively: "trading at a premium", "accelerating growth", "expanding margins", "strengthening position"
 - Example BAD: "I believe the company warrants a higher multiple" 
 - Example GOOD: "The company's strategic positioning in high-growth markets suggests potential for multiple expansion"
+- Example BAD: "With a PE ratio of 35x and earnings growth of 25%, the stock appears fairly valued"
+- Example GOOD: "The current valuation reflects the company's strong growth trajectory and improving fundamentals"
 
 IMPORTANT TEMPORAL CONTEXT:
 - You will receive 'analysis_date' and 'current_quarter' (e.g., "2025-11-13", "Q4 2025")
@@ -117,9 +121,9 @@ Output Format (JSON) - Generate these specific sections:
     
     "company_description": "2-3 sentences describing what the company does, its market position, and business model",
     
-    "analysis": "Comprehensive 3-4 sentence analysis combining: 1) Why current valuation (overvalued/undervalued) in plain language - focus on if growth justifies premium, margin trends, competitive position vs peers, 2) Recent developments from news (earnings, products, management changes), 3) Why stock is at current price level. CRITICAL WRITING STYLE: Write as a professional financial report in THIRD PERSON ONLY. NEVER use first person (I, my, we, our) or phrases like 'I believe', 'my assessment', 'in my opinion'. Present analysis as objective observations and facts. DO NOT mention your calculated fair value number, PE multiples, or calculation methodology - these are shown separately. Write in accessible language for investors, not technical analysis jargon. IMPORTANT: If critical data is missing (current PE, earnings_growth, revenue_growth, profit_margins), START with a disclaimer: 'Note: Complete valuation analysis unavailable due to missing [specify which data]. Analysis based on available information only.' Then provide qualitative analysis based on what data IS available.",
+    "analysis": "Comprehensive 3-4 sentence analysis combining: 1) Why current valuation (overvalued/undervalued) in plain language - focus on if growth justifies premium, margin trends, competitive position vs peers, 2) Recent developments from news (earnings, products, management changes), 3) Why stock is at current price level. CRITICAL WRITING STYLE: Write as a professional financial report in THIRD PERSON ONLY. NEVER use first person (I, my, we, our) or phrases like 'I believe', 'my assessment', 'in my opinion'. Present analysis as objective observations and facts. DO NOT mention numbers: NO specific PE ratios, growth percentages, prices, margins - user sees these separately. DO NOT mention fair value numbers or calculation methodology. Instead, describe valuation qualitatively (e.g., 'trading at a premium to historical levels', 'growth trajectory supports current valuation', 'margins expanding'). Write in accessible language for investors, not technical analysis jargon. IMPORTANT: If critical data is missing (current PE, earnings_growth, revenue_growth, profit_margins), START with a disclaimer: 'Note: Complete valuation analysis unavailable due to missing [specify which data]. Analysis based on available information only.' Then provide qualitative analysis based on what data IS available.",
     
-    "forward_outlook": "2-3 sentences on future prospects based on: 1) Earnings growth trajectory, 2) Industry trends, 3) Competitive position, 4) Upcoming catalysts. PROFESSIONAL STYLE: Write in third person as objective financial report. NEVER use first person (I, my, we) or subjective phrases.",
+    "forward_outlook": "2-3 sentences on future prospects based on: 1) Earnings growth trajectory, 2) Industry trends, 3) Competitive position, 4) Upcoming catalysts. PROFESSIONAL STYLE: Write in third person as objective financial report. NEVER use first person (I, my, we) or subjective phrases. DO NOT mention specific numbers (growth rates, percentages, prices) - describe trends qualitatively (e.g., 'accelerating growth', 'expanding addressable market', 'strengthening competitive position').",
     
     "risk_factors": [
         "Clear description of fundamental/business risk (e.g., High debt levels could limit growth flexibility)",
@@ -274,6 +278,8 @@ IMPORTANT: Write risk_factors and catalysts as clean, readable sentences. DO NOT
                 f"5. WRITE analysis sections (PROFESSIONAL THIRD-PERSON STYLE):\n"
                 f"   - Write as objective financial report - NO first person (I, my, we, our)\n"
                 f"   - NO subjective phrases: 'I believe', 'my assessment', 'in my opinion'\n"
+                f"   - DO NOT mention specific numbers (PE ratios, growth %, prices, margins) in narrative text\n"
+                f"   - Use qualitative descriptions: 'premium valuation', 'accelerating growth', 'expanding margins', 'strong momentum'\n"
                 f"   - Present facts and observations objectively\n"
                 f"   - Explain WHY stock is over/undervalued in plain language (growth vs premium, margins, competitive position)\n"
                 f"   - Mention recent developments (earnings, products, management)\n"
@@ -287,7 +293,7 @@ IMPORTANT: Write risk_factors and catalysts as clean, readable sentences. DO NOT
                 f'  "buy_below": 100.00 or null (null if critical data missing: current PE, earnings_growth, revenue_growth, profit_margins),\n'
                 f'  "sell_above": 150.00 or null (null if critical data missing),\n'
                 f'  "company_description": "2-3 sentence overview of what the company does",\n'
-                f'  "analysis": "3-4 paragraphs explaining investment thesis. IMPORTANT: If critical data missing (current PE, earnings_growth, revenue_growth, profit_margins), start with disclaimer noting which data is unavailable. NOTE: forward_pe is optional.",\n'
+                f'  "analysis": "3-4 paragraphs explaining investment thesis. Write professionally in third person. DO NOT mention specific numbers (PE ratios, growth %, prices). Use qualitative descriptions (premium valuation, strong growth, expanding margins). IMPORTANT: If critical data missing (current PE, earnings_growth, revenue_growth, profit_margins), start with disclaimer noting which data is unavailable. NOTE: forward_pe is optional.",\n'
                 f'  "forward_outlook": "2-3 paragraphs on future prospects and growth drivers",\n'
                 f'  "market_comparison": "2 paragraphs on performance vs S&P 500 last month, competitive position, key competitors",\n'
                 f'  "risk_factors": ["Risk 1 description", "Risk 2 description", "Risk 3 description"],\n'
