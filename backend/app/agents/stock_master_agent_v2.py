@@ -161,6 +161,12 @@ IMPORTANT: Write risk_factors and catalysts as clean, readable sentences. DO NOT
             sector = fundamentals_basic.get('sector', 'N/A')
             industry = fundamentals_basic.get('industry', 'N/A')
             
+            # Get fundamentals trend analysis
+            revenue_trend = fundamentals_analysis.get('revenue_growth_trend', 'N/A')
+            earnings_consistency = fundamentals_analysis.get('earnings_consistency', 'N/A')
+            competitive_advantages = fundamentals_analysis.get('fundamental_strengths', [])
+            fundamental_concerns = fundamentals_analysis.get('fundamental_concerns', [])
+            
             master_analysis = await self.analyze_with_full_context(
                 comprehensive_data,
                 f"Perform comprehensive analysis for {self.ticker}.\n\n"
@@ -172,7 +178,12 @@ IMPORTANT: Write risk_factors and catalysts as clean, readable sentences. DO NOT
                 f"- PE vs Industry: {pe_vs_industry} (premium/discount to industry)\n"
                 f"- Sector/Industry: {sector} / {industry}\n"
                 f"- Profit Margin: {profit_margin}\n"
-                f"- Revenue Growth: {revenue_growth}\n\n"
+                f"- Revenue Growth (TTM): {revenue_growth}\n\n"
+                f"LONG-TERM FUNDAMENTALS TREND ANALYSIS (from Fundamentals Agent):\n"
+                f"- Revenue Growth Trend: {revenue_trend} (over past 4-8 quarters)\n"
+                f"- Earnings Consistency: {earnings_consistency} (0-1 score)\n"
+                f"- Fundamental Strengths: {', '.join(competitive_advantages[:3]) if competitive_advantages else 'None identified'}\n"
+                f"- Fundamental Concerns: {', '.join(fundamental_concerns[:3]) if fundamental_concerns else 'None identified'}\n\n"
                 f"YOUR TASK - SMART VALUATION:\n"
                 f"1. UNDERSTAND the stock's historical valuation:\n"
                 f"   - Does it trade at premium to industry? WHY? (brand, CEO, innovation, market position)\n"
@@ -180,10 +191,11 @@ IMPORTANT: Write risk_factors and catalysts as clean, readable sentences. DO NOT
                 f"   - Has the business changed (e.g., auto → tech/AI)?\n\n"
                 f"2. DETERMINE fair value intelligently:\n"
                 f"   - Start with historical_pe_avg (baseline for THIS stock)\n"
-                f"   - Adjust UP if: growth accelerating, margins improving, new business lines\n"
-                f"   - Adjust DOWN if: growth decelerating, margins compressing, competitive threats\n"
+                f"   - Adjust UP if: revenue growth ACCELERATING, margins IMPROVING, strong competitive moats\n"
+                f"   - Adjust DOWN if: revenue growth DECELERATING, margins COMPRESSING, fundamental concerns emerging\n"
                 f"   - Forward PE vs Current PE shows market expectations (compression = concern)\n"
-                f"   - PEG ratio: Is growth rate justifying the PE multiple?\n\n"
+                f"   - PEG ratio: Is growth rate justifying the PE multiple?\n"
+                f"   - USE the Fundamentals Agent's trend analysis to inform your fair value estimate\n\n"
                 f"3. EXAMPLE:\n"
                 f"   - Historical PE: 80x, Current: 312x, Industry: 18x\n"
                 f"   - Stock always traded at premium (let's say historical 4-5x industry)\n"

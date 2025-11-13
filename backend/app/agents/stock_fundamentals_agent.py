@@ -24,31 +24,38 @@ class StockFundamentalsAgent(BaseStockAgent):
             agent_id = f"stock_fundamentals_{ticker.lower()}_001"
         
         specialized_prompt = f"""
-You are a Stock Fundamentals Analysis AI specializing in {ticker}.
+You are a Long-Term Fundamentals Analyst specializing in {ticker}.
+
+YOUR UNIQUE ROLE - TREND ANALYSIS:
+You are NOT analyzing single-quarter snapshots. Your job is to identify LONG-TERM TRENDS:
+
+1. REVENUE & EARNINGS TRENDS (Multi-Quarter/Year):
+   - Is growth ACCELERATING, STABLE, or DECELERATING over the past 4-8 quarters?
+   - Are margins EXPANDING or COMPRESSING over time?
+   - Is the business becoming MORE or LESS profitable?
+   - Example: "Revenue growth accelerated from 5% → 12% → 18% over last 3 quarters"
+
+2. COMPETITIVE POSITION TRENDS:
+   - Is market share GROWING or SHRINKING?
+   - Are competitive advantages STRENGTHENING or WEAKENING?
+   - Are new threats emerging or old threats diminishing?
+
+3. VALUATION TRENDS:
+   - How does current PE compare to its 1-year, 3-year, 5-year average?
+   - Is the company trading at a premium or discount to its historical valuation?
+   - Has the valuation multiple expanded or contracted over time?
+
+4. QUALITY TRENDS:
+   - Is return on equity improving or deteriorating?
+   - Is debt increasing or decreasing relative to equity?
+   - Is free cash flow generation improving?
+
+You will receive quarterly historical data. Use it to identify TRENDS, not just current state.
 
 IMPORTANT TEMPORAL CONTEXT:
-- You will receive 'analysis_date' and 'current_quarter' in the data (e.g., "2025-11-13", "Q4 2025")
-- You will receive 'latest_quarter_label' for the most recent reported earnings (e.g., "Q3 2024")
-- ONLY refer to quarters that have already been reported (in the past)
-- DO NOT reference future quarters (e.g., if current is Q4 2025, don't mention Q1 2026 earnings)
-- When discussing "recent" or "latest" earnings, use the 'latest_quarter_label' provided
-
-Your role is to:
-1. Analyze {ticker}'s financial health and valuation metrics (PROVIDED in the data)
-2. Assess growth prospects and profitability trends (revenue/earnings growth rates are ALREADY CALCULATED - don't recalculate)
-3. Compare {ticker} to industry peers and market averages
-4. Evaluate competitive position and business model strength
-5. Consider macroeconomic impact on {ticker}'s fundamentals
-
-Focus on:
-- Valuation metrics (P/E, P/B, P/S, PEG ratio, EV/EBITDA)
-- Growth trends (revenue_growth and earnings_growth are provided - analyze trends, don't calculate)
-- Profitability (margins, ROE, ROA, ROIC)
-- Financial health (debt levels, liquidity, cash flow)
-- Competitive position and market share trends
-- Economic sensitivity and cycle positioning
-
-IMPORTANT: DO NOT calculate revenue_growth or earnings_growth - these are provided in the data and calculated correctly elsewhere.
+- Latest reported quarter: Use 'latest_quarter_label' provided
+- ONLY refer to quarters that have been reported (past data)
+- DO NOT calculate growth rates (already provided) - ANALYZE the trend direction
 
 Output Format (JSON):
 {{
@@ -109,10 +116,13 @@ Be specific about {ticker} and provide actionable fundamental insights.
             logger.error(f"[{self.agent_id}] Error in fundamentals analysis cycle: {e}")
     
     async def _collect_stock_fundamentals_data(self) -> Dict:
-        """Collect fundamentals-related data for this stock"""
+        """Collect fundamentals-related data for this stock INCLUDING quarterly history for trend analysis"""
         try:
             # Get stock fundamentals from yfinance
             fundamentals = await self.get_stock_fundamentals()
+            
+            # Get quarterly historical data for TREND ANALYSIS
+            quarterly_history = await self._get_quarterly_trends()
             
             # Get recent stock-specific memory for context
             stock_memory = await self.memory.get_stock_short_term_memory(30)
@@ -158,6 +168,9 @@ Be specific about {ticker} and provide actionable fundamental insights.
                 'current_fundamentals': fundamentals,
                 'derived_metrics': derived_metrics,
                 
+                # QUARTERLY TRENDS FOR LONG-TERM ANALYSIS
+                'quarterly_trends': quarterly_history,
+                
                 # Valuation context
                 'current_price': current_price,
                 'pe_current': pe_current,
@@ -178,7 +191,7 @@ Be specific about {ticker} and provide actionable fundamental insights.
                 'recent_fundamentals_history': stock_memory.get('recent_analysis', []),
                 
                 # Meta information
-                'data_sources': ['yfinance', 'market_context', 'historical_analysis'],
+                'data_sources': ['yfinance', 'market_context', 'historical_analysis', 'quarterly_trends'],
                 'data_quality': 'high' if fundamentals.get('pe_ratio') else 'medium'
             }
             
@@ -186,6 +199,62 @@ Be specific about {ticker} and provide actionable fundamental insights.
             
         except Exception as e:
             logger.error(f"Error collecting fundamentals data for {self.ticker}: {e}")
+            return {}
+    
+    async def _get_quarterly_trends(self) -> Dict:
+        """Get quarterly historical data for trend analysis"""
+        try:
+            import yfinance as yf
+            stock = yf.Ticker(self.ticker)
+            
+            # Get quarterly income statement (last 8 quarters if available)
+            quarterly_income = stock.quarterly_income_stmt
+            
+            if quarterly_income is None or quarterly_income.empty:
+                logger.warning(f"[{self.ticker}] No quarterly income data available")
+                return {}
+            
+            # Get quarterly financials (balance sheet)
+            quarterly_balance = stock.quarterly_balance_sheet
+            
+            # Extract key metrics over time
+            quarters = []
+            for col in quarterly_income.columns[:8]:  # Last 8 quarters
+                quarter_data = {
+                    'quarter_end': col.strftime('%Y-%m-%d'),
+                    'total_revenue': float(quarterly_income.loc['Total Revenue', col]) if 'Total Revenue' in quarterly_income.index else None,
+                    'gross_profit': float(quarterly_income.loc['Gross Profit', col]) if 'Gross Profit' in quarterly_income.index else None,
+                    'operating_income': float(quarterly_income.loc['Operating Income', col]) if 'Operating Income' in quarterly_income.index else None,
+                    'net_income': float(quarterly_income.loc['Net Income', col]) if 'Net Income' in quarterly_income.index else None,
+                }
+                
+                # Calculate margins if data available
+                if quarter_data['total_revenue'] and quarter_data['net_income']:
+                    quarter_data['net_margin'] = (quarter_data['net_income'] / quarter_data['total_revenue']) * 100
+                if quarter_data['total_revenue'] and quarter_data['gross_profit']:
+                    quarter_data['gross_margin'] = (quarter_data['gross_profit'] / quarter_data['total_revenue']) * 100
+                
+                quarters.append(quarter_data)
+            
+            # Calculate YoY growth rates
+            if len(quarters) >= 5:
+                for i in range(len(quarters) - 4):
+                    if quarters[i]['total_revenue'] and quarters[i + 4]['total_revenue']:
+                        quarters[i]['revenue_yoy_growth'] = ((quarters[i]['total_revenue'] - quarters[i + 4]['total_revenue']) / quarters[i + 4]['total_revenue']) * 100
+                    if quarters[i]['net_income'] and quarters[i + 4]['net_income'] and quarters[i + 4]['net_income'] != 0:
+                        quarters[i]['earnings_yoy_growth'] = ((quarters[i]['net_income'] - quarters[i + 4]['net_income']) / abs(quarters[i + 4]['net_income'])) * 100
+            
+            trend_summary = {
+                'quarters': quarters,
+                'num_quarters': len(quarters),
+                'data_source': 'yfinance_quarterly_income_stmt'
+            }
+            
+            logger.info(f"[{self.ticker}] Retrieved {len(quarters)} quarters of historical data for trend analysis")
+            return trend_summary
+            
+        except Exception as e:
+            logger.error(f"[{self.ticker}] Error getting quarterly trends: {e}")
             return {}
     
     async def _store_fundamentals_analysis(self, fundamentals_data: Dict, analysis: Dict):
