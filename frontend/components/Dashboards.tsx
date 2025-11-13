@@ -43,6 +43,11 @@ interface StockAnalysis {
   market_comparison?: string;
   latest_quarter_label?: string;
   
+  // Valuation metrics
+  fair_value_price?: number;
+  buy_below?: number;
+  sell_above?: number;
+  
   // Fundamental Metrics
   pe_ratio?: number;
   forward_pe?: number;
@@ -539,30 +544,28 @@ const Dashboards: React.FC = () => {
             {/* Key Metrics */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <div className="text-sm text-gray-600 dark:text-gray-400">Target Price</div>
-                <div className="font-bold text-lg text-gray-800 dark:text-white">
-                  {analysis.target_price 
-                    ? `$${analysis.target_price.toFixed(2)}`
+                <div className="text-sm text-gray-600 dark:text-gray-400">Strong Buy Below</div>
+                <div className="font-bold text-lg text-green-600 dark:text-green-400">
+                  {analysis.buy_below 
+                    ? `$${analysis.buy_below.toFixed(2)}`
                     : 'N/A'}
                 </div>
               </div>
               
               <div className="text-center">
-                <div className="text-sm text-gray-600 dark:text-gray-400">Current Price</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Strong Sell Above</div>
+                <div className="font-bold text-lg text-red-600 dark:text-red-400">
+                  {analysis.sell_above 
+                    ? `$${analysis.sell_above.toFixed(2)}`
+                    : 'N/A'}
+                </div>
+              </div>
+              
+              <div className="text-center">
+                <div className="text-sm text-gray-600 dark:text-gray-400">Fair Value</div>
                 <div className="font-bold text-lg text-blue-600 dark:text-blue-400">
-                  {analysis.current_price 
-                    ? `$${analysis.current_price.toFixed(2)}`
-                    : 'N/A'}
-                </div>
-              </div>
-              
-              <div className="text-center">
-                <div className="text-sm text-gray-600 dark:text-gray-400">Upside Potential</div>
-                <div className={`font-bold text-lg ${
-                  (analysis.upside_potential || 0) > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                }`}>
-                  {analysis.upside_potential 
-                    ? `${analysis.upside_potential.toFixed(1)}%`
+                  {analysis.fair_value_price 
+                    ? `$${analysis.fair_value_price.toFixed(2)}`
                     : 'N/A'}
                 </div>
               </div>
