@@ -213,30 +213,50 @@ Provide your analysis as a JSON object matching the specified format.
                     logger.warning(f"[{self.ticker}] No quarterly income statement data available")
                 
                 # ============================================================
-                # USE YAHOO FINANCE'S GROWTH METRICS DIRECTLY
+                # CALCULATE GROWTH METRICS (Yahoo or calculate YoY)
                 # ============================================================
-                # Debug: Log what we're getting from yfinance
-                logger.info(f"[{self.ticker}] DEBUG: earningsGrowth raw value: {info.get('earningsGrowth')} (type: {type(info.get('earningsGrowth'))})")
-                logger.info(f"[{self.ticker}] DEBUG: revenueGrowth raw value: {info.get('revenueGrowth')} (type: {type(info.get('revenueGrowth'))})")
-                logger.info(f"[{self.ticker}] DEBUG: Total info keys: {len(info.keys())}")
-                logger.info(f"[{self.ticker}] DEBUG: Has earningsGrowth key: {'earningsGrowth' in info}")
-                logger.info(f"[{self.ticker}] DEBUG: Has revenueGrowth key: {'revenueGrowth' in info}")
-                
-                # Yahoo provides earnings growth - use it directly
+                # Try Yahoo Finance first, fallback to calculation
                 calculated_earnings_growth = info.get('earningsGrowth')
                 if calculated_earnings_growth is not None:
                     calculated_earnings_growth = calculated_earnings_growth * 100  # Convert to percentage
                     logger.info(f"[{self.ticker}] Earnings Growth (from yfinance): {calculated_earnings_growth:.1f}%")
                 else:
-                    logger.warning(f"[{self.ticker}] No earnings growth data available from yfinance")
+                    # Calculate YoY EPS growth from quarterly data
+                    if latest_eps is not None and 'Diluted EPS' in quarterly.index:
+                        eps_data_quarterly = quarterly.loc['Diluted EPS']
+                        if len(eps_data_quarterly) >= 5:
+                            yoy_eps = eps_data_quarterly.iloc[4]  # 1 year ago
+                            if yoy_eps == yoy_eps and yoy_eps > 0:  # Not NaN and positive
+                                calculated_earnings_growth = ((latest_eps - yoy_eps) / yoy_eps) * 100
+                                logger.info(f"[{self.ticker}] Earnings Growth (calculated YoY): {calculated_earnings_growth:.1f}% (${latest_eps:.2f} vs ${yoy_eps:.2f})")
+                            else:
+                                logger.warning(f"[{self.ticker}] Cannot calculate earnings growth: YoY EPS is invalid")
+                        else:
+                            logger.warning(f"[{self.ticker}] Insufficient data for earnings growth (need 5+ quarters, have {len(eps_data_quarterly)})")
+                    else:
+                        logger.warning(f"[{self.ticker}] Cannot calculate earnings growth: no quarterly EPS data")
                 
-                # Yahoo provides revenue growth - use it directly
+                # Try Yahoo Finance first, fallback to calculation
                 calculated_revenue_growth = info.get('revenueGrowth')
                 if calculated_revenue_growth is not None:
                     calculated_revenue_growth = calculated_revenue_growth * 100  # Convert to percentage
                     logger.info(f"[{self.ticker}] Revenue Growth (from yfinance): {calculated_revenue_growth:.1f}%")
                 else:
-                    logger.warning(f"[{self.ticker}] No revenue growth data available from yfinance")
+                    # Calculate YoY revenue growth from quarterly data
+                    if not quarterly.empty and 'Total Revenue' in quarterly.index:
+                        revenue_data = quarterly.loc['Total Revenue']
+                        if len(revenue_data) >= 5:
+                            latest_revenue = revenue_data.iloc[0]
+                            yoy_revenue = revenue_data.iloc[4]  # 1 year ago
+                            if yoy_revenue and yoy_revenue > 0:
+                                calculated_revenue_growth = ((latest_revenue - yoy_revenue) / yoy_revenue) * 100
+                                logger.info(f"[{self.ticker}] Revenue Growth (calculated YoY): {calculated_revenue_growth:.1f}%")
+                            else:
+                                logger.warning(f"[{self.ticker}] Cannot calculate revenue growth: YoY revenue is invalid")
+                        else:
+                            logger.warning(f"[{self.ticker}] Insufficient data for revenue growth (need 5+ quarters, have {len(revenue_data)})")
+                    else:
+                        logger.warning(f"[{self.ticker}] Cannot calculate revenue growth: no quarterly revenue data")
                 
                 # Log summary
                 earnings_str = f"{calculated_earnings_growth:.1f}%" if calculated_earnings_growth is not None else "N/A"
