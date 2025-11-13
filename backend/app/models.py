@@ -837,12 +837,12 @@ class StockTechnicalAnalysis(Base):
     
     # Momentum Analysis
     momentum_score = Column(Float)  # -1 to 1
-    momentum_trend = Column(String(20))  # 'Accelerating', 'Stable', 'Decelerating'
-    rsi_assessment = Column(String(20))  # 'Oversold', 'Neutral', 'Overbought'
+    momentum_trend = Column(Text)  # 'Accelerating', 'Stable', 'Decelerating'
+    rsi_assessment = Column(Text)  # 'Oversold', 'Neutral', 'Overbought'
     macd_signal = Column(String(20))  # 'Bullish', 'Bearish', 'Neutral'
     
     # Volatility Analysis
-    volatility_level = Column(String(20))  # 'Low', 'Medium', 'High'
+    volatility_level = Column(Text)  # 'Low', 'Medium', 'High'
     volatility_percentile = Column(Float)  # vs 1 year history
     bollinger_position = Column(String(20))  # 'Upper', 'Middle', 'Lower'
     
@@ -874,8 +874,8 @@ class StockTechnicalAnalysis(Base):
     risk_assessment = Column(Text)  # Technical risk factors
     
     # Outlook
-    short_term_outlook = Column(String(20))  # Next 1-5 days
-    medium_term_outlook = Column(String(20))  # Next 1-4 weeks
+    short_term_outlook = Column(Text)  # Next 1-5 days
+    medium_term_outlook = Column(Text)  # Next 1-4 weeks
     
     # Agent Metadata
     agent_id = Column(String(50), nullable=False)

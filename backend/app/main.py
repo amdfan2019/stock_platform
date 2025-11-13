@@ -60,6 +60,21 @@ try:
             logger.info("✅ Fixed stock_technical_analysis.chart_pattern column type")
         except Exception as e:
             logger.debug(f"chart_pattern fix: {e}")
+        
+        # Fix 3: Change multiple VARCHAR(20) columns to TEXT to allow LLM context
+        try:
+            conn.execute(text("""
+                ALTER TABLE stock_technical_analysis 
+                ALTER COLUMN momentum_trend TYPE TEXT,
+                ALTER COLUMN rsi_assessment TYPE TEXT,
+                ALTER COLUMN volatility_level TYPE TEXT,
+                ALTER COLUMN short_term_outlook TYPE TEXT,
+                ALTER COLUMN medium_term_outlook TYPE TEXT;
+            """))
+            conn.commit()
+            logger.info("✅ Fixed stock_technical_analysis VARCHAR(20) columns to TEXT")
+        except Exception as e:
+            logger.debug(f"VARCHAR(20) to TEXT fix: {e}")
             
 except Exception as e:
     logger.info(f"Database fixes: {e}")
