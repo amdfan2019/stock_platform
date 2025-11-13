@@ -207,7 +207,8 @@ Provide your analysis as a JSON object matching the specified format.
                     if 'Diluted EPS' in quarterly.index:
                         eps_data_quarterly = quarterly.loc['Diluted EPS']
                         latest_eps = eps_data_quarterly.iloc[0]  # Most recent quarter
-                        logger.info(f"[{self.ticker}] Latest quarter: {latest_quarter_date} - Single Quarter EPS: ${latest_eps:.2f}, TTM EPS: ${latest_ttm_eps:.2f if latest_ttm_eps else 'N/A'}")
+                        ttm_str = f"${latest_ttm_eps:.2f}" if latest_ttm_eps else "N/A"
+                        logger.info(f"[{self.ticker}] Latest quarter: {latest_quarter_date} - Single Quarter EPS: ${latest_eps:.2f}, TTM EPS: {ttm_str}")
                     else:
                         logger.warning(f"[{self.ticker}] No Diluted EPS data in quarterly_income_stmt")
                 else:
@@ -264,7 +265,8 @@ Provide your analysis as a JSON object matching the specified format.
                 earnings_str = f"{calculated_earnings_growth:.1f}%" if calculated_earnings_growth is not None else "N/A"
                 revenue_str = f"{calculated_revenue_growth:.1f}%" if calculated_revenue_growth is not None else "N/A"
                 if latest_quarter_date and latest_eps is not None:
-                    logger.info(f"[{self.ticker}] Quarter ended {latest_quarter_date} - Latest Quarter EPS: ${latest_eps:.2f}, TTM EPS: ${latest_ttm_eps:.2f if latest_ttm_eps else 'N/A'}")
+                    ttm_str = f"${latest_ttm_eps:.2f}" if latest_ttm_eps else "N/A"
+                    logger.info(f"[{self.ticker}] Quarter ended {latest_quarter_date} - Latest Quarter EPS: ${latest_eps:.2f}, TTM EPS: {ttm_str}")
                     logger.info(f"[{self.ticker}] Growth Metrics - Revenue: {revenue_str}, Earnings: {earnings_str}")
             except Exception as e:
                 logger.error(f"[{self.ticker}] EXCEPTION in growth calculation: {e}")
