@@ -2095,22 +2095,23 @@ async def get_big_movers(limit: int = 10):
 
 @app.get("/api/stocks/opportunities/sectors")
 async def get_sectors():
-    """Get list of sectors with stock counts"""
+    """Get list of sectors with stock counts (includes dynamic 'Megacap' sector for companies > $500B)"""
     try:
-        from .models import SP500Stock
+        from .models import StockOpportunity
         from sqlalchemy import func
         
         db = SessionLocal()
         try:
+            # Query from StockOpportunity to include dynamic "Megacap" sector
             sectors = db.query(
-                SP500Stock.sector,
-                func.count(SP500Stock.ticker).label('stock_count')
+                StockOpportunity.sector,
+                func.count(StockOpportunity.ticker).label('stock_count')
             ).filter(
-                SP500Stock.sector != None
+                StockOpportunity.sector != None
             ).group_by(
-                SP500Stock.sector
+                StockOpportunity.sector
             ).order_by(
-                func.count(SP500Stock.ticker).desc()
+                func.count(StockOpportunity.ticker).desc()
             ).all()
             
             return {

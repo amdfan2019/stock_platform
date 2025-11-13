@@ -102,6 +102,11 @@ class OpportunityScanner:
             StockAnalysis.ticker == ticker
         ).order_by(StockAnalysis.analysis_date.desc()).first()
         
+        # Override sector to "Megacap" if market cap > $500B
+        if latest_analysis and latest_analysis.market_cap:
+            if latest_analysis.market_cap > 500_000_000_000:  # $500B
+                sector = "Megacap"
+        
         if not latest_analysis:
             logger.debug(f"{ticker}: No analysis found, skipping")
             return None
