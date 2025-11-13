@@ -156,6 +156,27 @@ const DebugGeminiCalls: React.FC = () => {
       setBatchLoading(false);
     }
   };
+
+  const cancelBatch = async () => {
+    try {
+      const data = await adminPost('/api/stocks/batch-cancel');
+      
+      if (data.status === 'success') {
+        setBatchLoading(false);
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          setPollingInterval(null);
+        }
+        localStorage.removeItem('batch_job_id');
+        // Refresh batch status
+        checkForRunningBatch();
+      } else {
+        setBatchError(data.message || 'Failed to cancel batch');
+      }
+    } catch (err) {
+      setBatchError('Failed to cancel batch');
+    }
+  };
   
   const pollBatchStatus = async (jobId: string) => {
     // Clear any existing polling interval first
@@ -254,6 +275,15 @@ const DebugGeminiCalls: React.FC = () => {
               >
                 <PlayCircle className="w-4 h-4" />
                 Failed Only ({failedAnalyses.length})
+              </button>
+            )}
+            {batchLoading && (
+              <button
+                onClick={cancelBatch}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                <XCircle className="w-4 h-4" />
+                Cancel
               </button>
             )}
           </div>

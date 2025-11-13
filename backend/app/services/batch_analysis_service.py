@@ -90,6 +90,32 @@ class BatchAnalysisService:
         finally:
             db.close()
     
+    def cancel_batch(self, job_id: str = None):
+        """Cancel a running batch job"""
+        db = SessionLocal()
+        try:
+            if job_id:
+                job = db.query(BatchAnalysisJob).filter(
+                    BatchAnalysisJob.job_id == job_id,
+                    BatchAnalysisJob.status == 'running'
+                ).first()
+            else:
+                # Cancel the most recent running job
+                job = db.query(BatchAnalysisJob).filter(
+                    BatchAnalysisJob.status == 'running'
+                ).order_by(BatchAnalysisJob.started_at.desc()).first()
+            
+            if job:
+                job.status = 'cancelled'
+                job.completed_at = datetime.utcnow()
+                db.commit()
+                logger.info(f"[{job.job_id}] Batch cancelled")
+                return {'status': 'success', 'message': f'Batch {job.job_id} cancelled'}
+            else:
+                return {'status': 'error', 'message': 'No running batch found'}
+        finally:
+            db.close()
+    
     def _complete_job(self, job_id: str, completed: int, failed: int):
         """Mark job as completed"""
         db = SessionLocal()

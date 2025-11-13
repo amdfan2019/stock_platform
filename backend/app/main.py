@@ -1958,6 +1958,22 @@ async def get_batch_status(job_id: str):
         return {'error': str(e)}
 
 
+@app.post("/api/stocks/batch-cancel", dependencies=[Depends(verify_admin_key)])
+async def cancel_batch(job_id: str = None):
+    """Cancel a running batch analysis job"""
+    try:
+        from .services.batch_analysis_service import BatchAnalysisService
+        
+        batch_service = BatchAnalysisService()
+        result = batch_service.cancel_batch(job_id)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error cancelling batch: {e}")
+        return {'status': 'error', 'error': str(e)}
+
+
 @app.get("/api/stocks/opportunities/best-buys")
 async def get_best_buys(limit: int = 10):
     """Get top best buy opportunities"""
