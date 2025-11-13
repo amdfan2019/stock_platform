@@ -56,21 +56,27 @@ Your Methodology:
    - Margins, ROE, debt levels
 
 2. CALCULATE fair value and thresholds (MANDATORY if data available, null if critical data missing):
-   - CRITICAL DATA REQUIRED: forward_pe, earnings_growth, revenue_growth, profit_margins
+   - CRITICAL DATA REQUIRED: pe_ratio (current PE), earnings_growth, revenue_growth, profit_margins
+   - OPTIONAL DATA: forward_pe (use if available, but don't weigh too heavily)
+   
    - IF ANY CRITICAL DATA IS MISSING (null/N/A):
      * SET fair_value_price = null
      * SET buy_below = null
      * SET sell_above = null
      * SET valuation_assessment = "N/A"
-     * ADD DISCLAIMER in "analysis" text: "Note: Complete valuation analysis unavailable due to missing fundamental data (specify which: forward PE, earnings growth, revenue growth, etc.). Analysis based on available information only."
+     * ADD DISCLAIMER in "analysis" text: "Note: Complete valuation analysis unavailable due to missing fundamental data (specify which: current PE, earnings growth, revenue growth, etc.). Analysis based on available information only."
    
    - IF ALL CRITICAL DATA AVAILABLE:
-     * Start with historical_pe_avg (what THIS stock normally trades at)
+     * Start with CURRENT PE and historical_pe_avg (what THIS stock normally trades at)
+     * Compare current PE vs forward PE:
+       - If forward PE << current PE (compression): Market expects slowdown - check if growth supports this
+       - If forward PE >> current PE (expansion): Market expects acceleration - check if growth supports this
+       - If divergence NOT justified by growth/fundamentals: FAVOR current PE as baseline
      * Adjust based on current growth vs historical growth
      * Adjust for margin trends (improving = higher multiple, declining = lower)
      * Adjust for sector multiples IF stock changed categories (e.g., auto → tech)
-     * Consider forward PE vs current PE (compression = concerns, expansion = optimism)
-     * SET fair_value_price: YOUR calculated fair value (e.g., if current $350, fair might be $340)
+     * DO NOT over-rely on forward PE - it's a market expectation, not a guarantee
+     * SET fair_value_price: YOUR calculated fair value based primarily on current PE + growth (e.g., if current $350, fair might be $340)
    
    LONG-TERM INVESTOR THRESHOLDS (for infrequent trading - only when data available):
    - SET buy_below: Fair value - 15-20% (significant discount for entry)
@@ -94,16 +100,17 @@ Output Format (JSON) - Generate these specific sections:
         - Undervalued: current price < fair_value * 0.90 (more than 10% below)
         - Fair Value: fair_value * 0.90 <= current price <= fair_value * 1.10 (within ±10%)
         - Overvalued: current price > fair_value * 1.10 (more than 10% above)
-        - N/A: if critical data missing (forward_pe, earnings_growth, revenue_growth, profit_margins)
+        - N/A: if critical data missing (pe_ratio/current PE, earnings_growth, revenue_growth, profit_margins)
+        NOTE: forward_pe is OPTIONAL - can still value with current PE + growth
         Example: Fair value $324, current $340 → +4.9% → "Fair Value" (NOT Overvalued),
     
-    "fair_value_price": float or null (calculate from fundamentals if data available, e.g., 340.50, or null if missing critical data),
+    "fair_value_price": float or null (calculate from current PE + fundamentals if data available, e.g., 340.50, or null if missing critical data),
     "buy_below": float or null (fair_value_price minus 15-20% for entry, e.g., 272-289, or null if missing critical data),
     "sell_above": float or null (fair_value_price plus 30-40% for gains, e.g., 442-476, or null if missing critical data),
     
     "company_description": "2-3 sentences describing what the company does, its market position, and business model",
     
-    "analysis": "Comprehensive 3-4 sentence analysis combining: 1) Why current valuation (overvalued/undervalued) in plain language - focus on if growth justifies premium, margin trends, competitive position vs peers, 2) Recent developments from news (earnings, products, management changes), 3) Why stock is at current price level. CRITICAL: DO NOT mention your calculated fair value number, PE multiples, or calculation methodology - these are shown separately. Write in accessible language for investors, not technical analysis jargon. IMPORTANT: If critical data is missing (forward_pe, earnings_growth, revenue_growth, profit_margins), START with a disclaimer: 'Note: Complete valuation analysis unavailable due to missing [specify which data]. Analysis based on available information only.' Then provide qualitative analysis based on what data IS available.",
+    "analysis": "Comprehensive 3-4 sentence analysis combining: 1) Why current valuation (overvalued/undervalued) in plain language - focus on if growth justifies premium, margin trends, competitive position vs peers, 2) Recent developments from news (earnings, products, management changes), 3) Why stock is at current price level. CRITICAL: DO NOT mention your calculated fair value number, PE multiples, or calculation methodology - these are shown separately. Write in accessible language for investors, not technical analysis jargon. IMPORTANT: If critical data is missing (current PE, earnings_growth, revenue_growth, profit_margins), START with a disclaimer: 'Note: Complete valuation analysis unavailable due to missing [specify which data]. Analysis based on available information only.' Then provide qualitative analysis based on what data IS available.",
     
     "forward_outlook": "2-3 sentences on future prospects based on: 1) Earnings growth trajectory, 2) Industry trends, 3) Competitive position, 4) Upcoming catalysts",
     
@@ -228,11 +235,15 @@ IMPORTANT: Write risk_factors and catalysts as clean, readable sentences. DO NOT
                 f"   - Is current PE above/below historical average?\n"
                 f"   - Has the business changed (e.g., auto → tech/AI)?\n\n"
                 f"2. DETERMINE fair value intelligently:\n"
-                f"   - Start with historical_pe_avg (baseline for THIS stock)\n"
+                f"   - Start with CURRENT PE and historical_pe_avg (baseline for THIS stock)\n"
+                f"   - Compare Current PE vs Forward PE:\n"
+                f"     * Forward PE is market EXPECTATION, not fact\n"
+                f"     * If significant divergence: check if growth/fundamentals support it\n"
+                f"     * If divergence NOT justified: FAVOR current PE + actual growth data\n"
+                f"     * Example: Current PE 35x, Forward PE 25x, but growth only 10% → skepticism warranted, use current PE\n"
                 f"   - Adjust UP if: revenue growth ACCELERATING, margins IMPROVING, strong competitive moats\n"
                 f"   - Adjust DOWN if: revenue growth DECELERATING, margins COMPRESSING, fundamental concerns emerging\n"
-                f"   - Forward PE vs Current PE shows market expectations (compression = concern)\n"
-                f"   - PEG ratio: Is growth rate justifying the PE multiple?\n"
+                f"   - PEG ratio: Is growth rate justifying the CURRENT PE multiple?\n"
                 f"   - USE the Fundamentals Agent's trend analysis to inform your fair value estimate\n\n"
                 f"3. EXAMPLE:\n"
                 f"   - Historical PE: 80x, Current: 312x, Industry: 18x\n"
@@ -241,10 +252,11 @@ IMPORTANT: Write risk_factors and catalysts as clean, readable sentences. DO NOT
                 f"   - Growth: -37% (declining!) → premium NOT justified\n"
                 f"   - Fair value: Maybe 50-60x PE (higher than industry due to brand, but way below current)\n\n"
                 f"4. SET buy/sell thresholds:\n"
-                f"   IF CRITICAL DATA MISSING (forward_pe, earnings_growth, revenue_growth, profit_margins):\n"
+                f"   IF CRITICAL DATA MISSING (pe_ratio/current PE, earnings_growth, revenue_growth, profit_margins):\n"
                 f"   - SET all three to null: fair_value_price=null, buy_below=null, sell_above=null\n"
                 f"   - SET valuation_assessment='N/A'\n"
-                f"   - Add disclaimer in analysis noting missing data\n\n"
+                f"   - Add disclaimer in analysis noting missing data\n"
+                f"   - NOTE: forward_pe is OPTIONAL, not critical - can still value with current PE + growth\n\n"
                 f"   IF ALL CRITICAL DATA AVAILABLE:\n"
                 f"   LONG-TERM INVESTOR PERSPECTIVE (hold for significant moves):\n"
                 f"   - fair_value_price: Your calculated fair value price (e.g., $277.00)\n"
@@ -261,11 +273,11 @@ IMPORTANT: Write risk_factors and catalysts as clean, readable sentences. DO NOT
                 f"REQUIRED JSON OUTPUT:\n"
                 f"{{\n"
                 f'  "valuation_assessment": "Undervalued" | "Fair Value" | "Overvalued" | "N/A",\n'
-                f'  "fair_value_price": 123.45 or null (null if critical data missing),\n'
-                f'  "buy_below": 100.00 or null (null if critical data missing),\n'
+                f'  "fair_value_price": 123.45 or null (calculate from current PE + growth if data available, null if critical data missing),\n'
+                f'  "buy_below": 100.00 or null (null if critical data missing: current PE, earnings_growth, revenue_growth, profit_margins),\n'
                 f'  "sell_above": 150.00 or null (null if critical data missing),\n'
                 f'  "company_description": "2-3 sentence overview of what the company does",\n'
-                f'  "analysis": "3-4 paragraphs explaining investment thesis. IMPORTANT: If critical data missing, start with disclaimer noting which data is unavailable",\n'
+                f'  "analysis": "3-4 paragraphs explaining investment thesis. IMPORTANT: If critical data missing (current PE, earnings_growth, revenue_growth, profit_margins), start with disclaimer noting which data is unavailable. NOTE: forward_pe is optional.",\n'
                 f'  "forward_outlook": "2-3 paragraphs on future prospects and growth drivers",\n'
                 f'  "market_comparison": "2 paragraphs on performance vs S&P 500 last month, competitive position, key competitors",\n'
                 f'  "risk_factors": ["Risk 1 description", "Risk 2 description", "Risk 3 description"],\n'
