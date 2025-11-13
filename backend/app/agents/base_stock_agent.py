@@ -182,6 +182,7 @@ Provide your analysis as a JSON object matching the specified format.
                 
                 # Get quarterly income statement - for latest quarter EPS and date
                 quarterly = stock.quarterly_income_stmt
+                logger.info(f"[{self.ticker}] Got quarterly data: empty={quarterly.empty}, columns={len(quarterly.columns) if not quarterly.empty else 0}")
                 
                 # Get latest quarter date and single quarter EPS (for context on seasonality)
                 if not quarterly.empty and len(quarterly.columns) >= 1:
@@ -215,6 +216,7 @@ Provide your analysis as a JSON object matching the specified format.
                 # ============================================================
                 # CALCULATE GROWTH METRICS (Yahoo or calculate YoY)
                 # ============================================================
+                logger.info(f"[{self.ticker}] Starting growth calculation...")
                 # Try Yahoo Finance first, fallback to calculation if needed
                 calculated_earnings_growth = info.get('earningsGrowth')
                 if calculated_earnings_growth is not None:
@@ -265,9 +267,9 @@ Provide your analysis as a JSON object matching the specified format.
                     logger.info(f"[{self.ticker}] Quarter ended {latest_quarter_date} - Latest Quarter EPS: ${latest_eps:.2f}, TTM EPS: ${latest_ttm_eps:.2f if latest_ttm_eps else 'N/A'}")
                     logger.info(f"[{self.ticker}] Growth Metrics - Revenue: {revenue_str}, Earnings: {earnings_str}")
             except Exception as e:
-                logger.warning(f"Could not calculate quarterly growth: {e}")
+                logger.error(f"[{self.ticker}] EXCEPTION in growth calculation: {e}")
                 import traceback
-                logger.debug(traceback.format_exc())
+                logger.error(f"[{self.ticker}] Traceback: {traceback.format_exc()}")
             
             # ============================================================
             # USE YAHOO FINANCE'S PE RATIOS DIRECTLY
