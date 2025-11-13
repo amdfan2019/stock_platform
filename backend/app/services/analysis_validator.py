@@ -109,9 +109,9 @@ class AnalysisValidator:
         try:
             failed_analyses = []
             
-            # Get all stocks that were marked as completed
+            # Get all stocks that were processed (completed or incomplete)
             stocks = db.query(SP500Stock).filter(
-                SP500Stock.analysis_status == 'completed'
+                SP500Stock.analysis_status.in_(['completed', 'incomplete'])
             ).all()
             
             for stock in stocks:
