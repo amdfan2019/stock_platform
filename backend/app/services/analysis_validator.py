@@ -102,6 +102,11 @@ class AnalysisValidator:
         """
         Get all stocks with incomplete or failed analyses
         
+        Includes:
+        - Stocks with status 'incomplete' 
+        - Stocks with status 'completed' but missing required fields
+        - Stocks with status 'pending' that have been attempted (have last_analyzed_at)
+        
         Returns:
             List of dicts with ticker, status, errors, last_analyzed_at
         """
@@ -109,9 +114,11 @@ class AnalysisValidator:
         try:
             failed_analyses = []
             
-            # Get all stocks that were processed (completed or incomplete)
+            # Get all stocks that were processed or attempted
+            # Include: completed, incomplete, AND pending stocks that have been attempted
             stocks = db.query(SP500Stock).filter(
-                SP500Stock.analysis_status.in_(['completed', 'incomplete'])
+                (SP500Stock.analysis_status.in_(['completed', 'incomplete'])) |
+                ((SP500Stock.analysis_status == 'pending') & (SP500Stock.last_analyzed_at.isnot(None)))
             ).all()
             
             for stock in stocks:
@@ -122,12 +129,13 @@ class AnalysisValidator:
                         'ticker': stock.ticker,
                         'company_name': stock.company_name,
                         'sector': stock.sector,
+                        'status': stock.analysis_status,
                         'last_analyzed_at': stock.last_analyzed_at.isoformat() if stock.last_analyzed_at else None,
                         'error_count': len(errors),
                         'errors': errors
                     })
             
-            logger.info(f"Found {len(failed_analyses)} incomplete analyses out of {len(stocks)} completed")
+            logger.info(f"Found {len(failed_analyses)} incomplete analyses out of {len(stocks)} processed")
             
             return failed_analyses
             
