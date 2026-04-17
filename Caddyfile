@@ -1,4 +1,4 @@
-{$DOMAIN:localhost} {
+nestleap.tech, www.nestleap.tech {
     handle /api/* {
         reverse_proxy backend:8000
     }
