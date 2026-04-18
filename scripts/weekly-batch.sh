@@ -1,36 +1,34 @@
 #!/bin/bash
-# Weekly batch analysis + portfolio rebalance
-# Add to crontab: 0 2 * * 0 /path/to/weekly-batch.sh
-# (Runs every Sunday at 2 AM)
+# Weekly full batch (rebalances portfolio when batch completes — do not run rebalance again).
+# After batch: refresh AI market summary.
+#
+# Crontab (Sunday 02:00 server time):
+#   0 2 * * 0 cd /root/stock_platform && API_URL=https://nestleap.au ADMIN_KEY=your_key ./scripts/weekly-batch.sh >> /var/log/nestleap-weekly.log 2>&1
 
 set -e
 
-API_URL="${API_URL:-http://localhost:8000}"
-ADMIN_KEY="${ADMIN_KEY:-changeme}"
+API_URL="${API_URL:-https://nestleap.au}"
+ADMIN_KEY="${ADMIN_KEY:?Set ADMIN_KEY}"
 
-echo "[$(date)] Starting weekly batch analysis..."
+echo "[$(date -Iseconds)] Starting weekly batch..."
 curl -sf -X POST "$API_URL/api/admin/batch/run" \
   -H "X-Admin-Key: $ADMIN_KEY" || { echo "Failed to start batch"; exit 1; }
 
-echo "[$(date)] Batch started. Waiting for completion..."
+echo "[$(date -Iseconds)] Waiting for batch to finish..."
 while true; do
   sleep 30
   STATUS=$(curl -sf "$API_URL/api/batch/status")
   RUNNING=$(echo "$STATUS" | python3 -c "import sys,json; print(json.load(sys.stdin)['running'])")
   COMPLETED=$(echo "$STATUS" | python3 -c "import sys,json; print(json.load(sys.stdin)['completed'])")
   TOTAL=$(echo "$STATUS" | python3 -c "import sys,json; print(json.load(sys.stdin)['total'])")
-  echo "[$(date)] Progress: $COMPLETED/$TOTAL"
+  echo "[$(date -Iseconds)] Batch progress: $COMPLETED/$TOTAL"
   if [ "$RUNNING" = "False" ]; then
     break
   fi
 done
 
-echo "[$(date)] Batch complete. Refreshing market summary..."
+echo "[$(date -Iseconds)] Batch done. Refreshing market summary..."
 curl -sf -X POST "$API_URL/api/admin/market-summary" \
-  -H "X-Admin-Key: $ADMIN_KEY" > /dev/null || echo "Market summary failed"
+  -H "X-Admin-Key: $ADMIN_KEY" > /dev/null || echo "Market summary request failed (non-fatal)"
 
-echo "[$(date)] Rebalancing portfolio..."
-curl -sf -X POST "$API_URL/api/admin/portfolio/rebalance" \
-  -H "X-Admin-Key: $ADMIN_KEY" || echo "Rebalance failed"
-
-echo "[$(date)] Weekly batch complete."
+echo "[$(date -Iseconds)] Weekly job finished."

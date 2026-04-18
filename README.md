@@ -51,10 +51,28 @@ cp .env.example .env   # fill in GEMINI_API_KEY, ADMIN_KEY, DOMAIN
 docker compose up -d --build
 ```
 
-Caddy handles HTTPS automatically via Let's Encrypt. Set up a weekly cron for batch analysis:
+Caddy handles HTTPS automatically via Let's Encrypt.
+
+### Scheduled jobs (on the VPS)
+
+The app does not start cron by itself. Use `crontab -e` on the server with your **public URL** and **`ADMIN_KEY`** from `.env` (same key as `/admin`).
+
+```bash
+chmod +x scripts/weekly-batch.sh scripts/daily-market-summary.sh
+```
+
+**Every Sunday 02:00** — full batch (~200 stocks). Portfolio rebalances automatically when the batch finishes; the script then refreshes the market summary.
 
 ```
-0 2 * * 0 cd /path/to/stock_platform && ./scripts/weekly-batch.sh
+0 2 * * 0 cd /root/stock_platform && API_URL=https://nestleap.au ADMIN_KEY=your_admin_key ./scripts/weekly-batch.sh >> /var/log/nestleap-weekly.log 2>&1
 ```
+
+**Every day 06:15** — new AI market summary (change the time if you like).
+
+```
+15 6 * * * cd /root/stock_platform && API_URL=https://nestleap.au ADMIN_KEY=your_admin_key ./scripts/daily-market-summary.sh >> /var/log/nestleap-market.log 2>&1
+```
+
+Replace `nestleap.au` if your domain differs. Times use the **server’s** timezone (`timedatectl` to check).
 
 See `.env.example` for required environment variables.
